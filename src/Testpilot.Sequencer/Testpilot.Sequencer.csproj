@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Testpilot.Core\Testpilot.Core.csproj" />
+    <ProjectReference Include="..\Testpilot.Data\Testpilot.Data.csproj" />
+    <ProjectReference Include="..\Testpilot.Drivers.Abstractions\Testpilot.Drivers.Abstractions.csproj" />
+    <ProjectReference Include="..\Testpilot.Drivers\Testpilot.Drivers.csproj" />
+    <ProjectReference Include="..\Testpilot.Planning\Testpilot.Planning.csproj" />
+    <ProjectReference Include="..\Testpilot.Sap\Testpilot.Sap.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

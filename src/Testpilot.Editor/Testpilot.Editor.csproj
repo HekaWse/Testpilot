@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Testpilot.Core\Testpilot.Core.csproj" />
+    <ProjectReference Include="..\Testpilot.Data\Testpilot.Data.csproj" />
+    <ProjectReference Include="..\Testpilot.Planning\Testpilot.Planning.csproj" />
+    <ProjectReference Include="..\Testpilot.Drivers.Abstractions\Testpilot.Drivers.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+</Project>
