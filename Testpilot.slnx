@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Testpilot.Core/Testpilot.Core.csproj" />
+    <Project Path="src/Testpilot.Data/Testpilot.Data.csproj" />
+    <Project Path="src/Testpilot.Drivers.Abstractions/Testpilot.Drivers.Abstractions.csproj" />
+    <Project Path="src/Testpilot.Drivers/Testpilot.Drivers.csproj" />
+    <Project Path="src/Testpilot.Editor/Testpilot.Editor.csproj" />
+    <Project Path="src/Testpilot.Planning/Testpilot.Planning.csproj" />
+    <Project Path="src/Testpilot.Sap/Testpilot.Sap.csproj" />
+    <Project Path="src/Testpilot.Sequencer/Testpilot.Sequencer.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Testpilot.Tests/Testpilot.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Testpilot.RunPlan/Testpilot.RunPlan.csproj" />
+  </Folder>
+</Solution>
