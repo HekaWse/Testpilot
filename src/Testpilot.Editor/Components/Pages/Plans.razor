@@ -1,0 +1,809 @@
+@page "/plans"
+@inject IDbContextFactory<TestpilotDbContext> DbFactory
+@inject ILogger<TestPlanService> PlanServiceLogger
+@inject ExecutionPlanOptimizer Optimizer
+@inject ISnackbar Snackbar
+
+<PageTitle>Prüfpläne</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Large">
+    <MudText Typo="Typo.h4" GutterBottom="true">Prüfpläne</MudText>
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorMessage</MudAlert>
+    }
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6">Entwurf anlegen</MudText>
+                <MudTextField Label="Artikelnummer" @bind-Value="newArticle" Required="true" Class="mt-2" />
+                <MudTextField Label="Fertigungszustand" @bind-Value="newFz" Required="true" Class="mt-2" />
+                <MudText Typo="Typo.caption">Artikelnummer und Fertigungszustand können nach dem Anlegen nicht mehr geändert werden.</MudText>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreatePlanAsync" Disabled="busy" Class="mt-3">Entwurf erstellen</MudButton>
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.h6">Vorhandene Prüfpläne</MudText>
+                @if (plans.Count == 0)
+                {
+                    <MudText Class="mt-2">Noch keine Prüfpläne vorhanden.</MudText>
+                }
+                else
+                {
+                    <MudList T="Guid">
+                        @foreach (var plan in plans)
+                        {
+                            <MudListItem T="Guid" Value="@plan.Id" Disabled="busy" OnClick="() => SelectPlanAsync(plan.Id)">
+                                @plan.ArtNr / @plan.Fz · V@plan.Version · @StatusText(plan.Status) · @SystemName(plan.TestSystemTypeId)
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4">
+                @if (selectedPlan is null)
+                {
+                    <MudText>Wähle einen Prüfplan aus oder lege einen Entwurf an.</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h5">@selectedPlan.ArtNr / @selectedPlan.Fz · Version @selectedPlan.Version</MudText>
+                    <MudChip T="string" Color="@StatusColor(selectedPlan.Status)" Class="my-2">@StatusText(selectedPlan.Status)</MudChip>
+                    <MudChip T="string" Class="my-2">Prüfsystemtyp: @SystemName(selectedPlan.TestSystemTypeId)</MudChip>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Refresh" OnClick="ReloadSelectedAsync" Disabled="busy" Class="my-2">Neu laden</MudButton>
+                    @if (selectedPlan.TestSystemTypeId is not null)
+                    {
+                        var availability = StationAvailability();
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Lauffähig auf: @(availability.Runnable.Count == 0 ? "keinem Prüfsystem" : string.Join(", ", availability.Runnable))
+                            @if (availability.NotRunnable.Count != 0)
+                            {
+                                <br /><MudText Typo="Typo.body2" Color="Color.Warning" Inline="true">Nicht lauffähig auf: @string.Join("; ", availability.NotRunnable)</MudText>
+                            }
+                        </MudText>
+                    }
+                    @if (selectedPlan.Status == PlanStatus.Draft)
+                    {
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="6">
+                                <MudSelect T="Guid?" Label="Prüfsystemtyp" @bind-Value="editSystemId" Disabled="@(!CanChangeSystem)">
+                                    <MudSelectItem Value="@((Guid?)null)">Kein Prüfsystemtyp</MudSelectItem>
+                                    @foreach (var system in systems)
+                                    {
+                                        <MudSelectItem Value="@((Guid?)system.Id)">@system.Name</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                        </MudGrid>
+                        @if (!CanChangeSystem)
+                        {
+                            <MudText Typo="Typo.caption">Der Prüfsystemtyp ist fest, weil Schritte bereits Geräte dieses Typs verwenden.</MudText>
+                        }
+                        else if (editSystemId != selectedPlan.TestSystemTypeId)
+                        {
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="my-2">Der Prüfsystemtyp wird erst mit „Stammdaten speichern“ übernommen.</MudAlert>
+                        }
+                        <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="SavePlanAsync" Disabled="@(busy || editSystemId == selectedPlan.TestSystemTypeId)" Class="mt-2">Stammdaten speichern</MudButton>
+                        @if (selectedPlan.TestSystemTypeId is null)
+                        {
+                            <MudAlert Severity="Severity.Info" Class="my-2">Wähle zuerst den Prüfsystemtyp (z. B. PS05), für den der Plan gilt, und speichere die Stammdaten. Danach stehen dessen Geräte und Kanäle zur Auswahl.</MudAlert>
+                        }
+                        @if (StepsWithUnknownDevices.Count > 0)
+                        {
+                            <MudAlert Severity="Severity.Warning" Class="my-2">Diese Schritte verwenden Geräte, die im gewählten Prüfsystemtyp fehlen: @string.Join(", ", StepsWithUnknownDevices)</MudAlert>
+                        }
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.h6">@(editingStepId.HasValue ? "Schritt bearbeiten" : "Schritt hinzufügen")</MudText>
+                        <MudGrid Spacing="2" Class="mt-1">
+                            <MudItem xs="12" sm="4"><MudTextField Label="Schrittname" @bind-Value="stepName" /></MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudSelect T="StepType" Label="Typ" Value="@stepType" ValueChanged="StepTypeChanged">
+                                    @foreach (var value in Enum.GetValues<StepType>())
+                                    {
+                                        <MudSelectItem Value="@value">@StepTypeText(value)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            @if (RequiresDevice(stepType))
+                            {
+                                <MudItem xs="12" sm="5">
+                                    <MudSelect T="string" Label="Gerät des Prüfsystemtyps" Value="@stepDeviceKey" ValueChanged="DeviceChanged">
+                                        @foreach (var device in DevicesFor(stepType))
+                                        {
+                                            <MudSelectItem Value="@device.DeviceKey">@DeviceText(device)</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                            }
+                            @if (stepType == StepType.Measure)
+                            {
+                                <MudItem xs="12" sm="3">
+                                    <MudSelect T="int" Label="Kanal" Value="@measureChannel" ValueChanged="ChannelChanged">
+                                        @foreach (var channel in availableChannels)
+                                        {
+                                            <MudSelectItem Value="@channel.Number">@channel.Number — @channel.Name (@ChannelTypeText(channel.Type))</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="3">
+                                    <MudSelect T="string" Label="Messgröße" Value="@measureFunction" ValueChanged="MeasurementFunctionChanged">
+                                        @foreach (var function in availableFunctions)
+                                        {
+                                            <MudSelectItem Value="@function">@function</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                                <MudItem xs="12" sm="3">
+                                    <MudTextField T="string" Label="Einheit (aus der Messgröße)" Value="@(measureUnit is null ? "" : Units.Symbol(measureUnit.Value))" ReadOnly="true" />
+                                </MudItem>
+                                <MudItem xs="12" sm="3"><MudTextField Label="Bereich (z. B. 10 mV)" @bind-Value="measureRangeInput" /></MudItem>
+                                <MudItem xs="12" sm="3"><MudTextField Label="NPLC (z. B. 0,2)" @bind-Value="measureNplcInput" /></MudItem>
+                                <MudItem xs="12" sm="3"><MudTextField Label="Grenzwert unten (z. B. 3,2 V)" @bind-Value="limitLowInput" /></MudItem>
+                                <MudItem xs="12" sm="3"><MudTextField Label="Grenzwert oben (z. B. 3,4 V)" @bind-Value="limitHighInput" /></MudItem>
+                            }
+                            else
+                            {
+                                <MudItem xs="12"><MudTextField Label="Schrittparameter (JSON-Objekt)" @bind-Value="parametersJson" Lines="3" Sizing="InputSizing.Auto" /></MudItem>
+                            }
+                            <MudItem xs="12" sm="6"><MudCheckBox T="bool" Label="Breakpoint vor diesem Schritt" @bind-Value="breakpoint" /></MudItem>
+                        </MudGrid>
+                        @if (stepType == StepType.Measure && (selectedProfile is null || availableChannels.Count == 0 || availableFunctions.Count == 0))
+                        {
+                            <MudAlert Severity="Severity.Warning" Class="my-2">Für dieses Gerät sind keine verwendbaren Messfunktionen im Profil definiert. Messungen sind erst nach Ergänzung eines geeigneten, verifizierten Profils möglich.</MudAlert>
+                        }
+                        @if (selectedProfile is not null && selectedProfile.SpecialCases.Concat(selectedProfile.Todos).Any())
+                        {
+                            <MudAlert Severity="Severity.Warning" Class="my-2">
+                                @foreach (var note in selectedProfile.SpecialCases.Concat(selectedProfile.Todos))
+                                {
+                                    <div>@note</div>
+                                }
+                            </MudAlert>
+                        }
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveStepAsync" Disabled="busy" Class="mt-2">@(editingStepId.HasValue ? "Änderungen speichern" : "Schritt hinzufügen")</MudButton>
+                        @if (editingStepId.HasValue)
+                        {
+                            <MudButton Variant="Variant.Text" OnClick="CancelStepEdit" Class="mt-2 ml-2">Bearbeitung abbrechen</MudButton>
+                        }
+                        <MudDivider Class="my-4" />
+                    }
+                    <MudText Typo="Typo.h6">Schritte (@selectedPlan.Steps.Count)</MudText>
+                    @if (selectedPlan.Steps.Count == 0)
+                    {
+                        <MudText>Der Entwurf enthält noch keine Schritte.</MudText>
+                    }
+                    else
+                    {
+                        <MudTable Items="selectedPlan.Steps.OrderBy(step => step.Order).ToList()" Dense="true" Hover="true">
+                            <HeaderContent>
+                                <MudTh>#</MudTh><MudTh>Name</MudTh><MudTh>Typ</MudTh><MudTh>Gerät / Parameter</MudTh><MudTh>Grenzen / Breakpoint</MudTh><MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@(context.Order + 1)</MudTd>
+                                <MudTd>@context.Name</MudTd>
+                                <MudTd>@StepTypeText(context.StepType)</MudTd>
+                                <MudTd>@context.DeviceKey<br /><code>@context.ParametersJson</code></MudTd>
+                                <MudTd>@FormatLimit(context.LimitLow, context.Unit) – @FormatLimit(context.LimitHigh, context.Unit) @if (context.BreakpointFlag) { <span> · Breakpoint</span> }</MudTd>
+                                <MudTd>
+                                    @if (selectedPlan.Status == PlanStatus.Draft)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" title="Bearbeiten" Disabled="busy" OnClick="() => EditStep(context.Id)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" title="Nach oben" Disabled="@(busy || context.Order == 0)" OnClick="() => MoveStepAsync(context.Id, -1)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" title="Nach unten" Disabled="@(busy || context.Order == selectedPlan.Steps.Count - 1)" OnClick="() => MoveStepAsync(context.Id, 1)" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" title="Entfernen" Disabled="busy" OnClick="() => RemoveStepAsync(context.Id)" />
+                                    }
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                    @if (channelAllocations.Count > 0)
+                    {
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.h6">Kanalbelegung</MudText>
+                        <MudText Typo="Typo.body2">Messungen und geschlossene Relais, geprüft gegen die Geräteprofile des Prüfsystemtyps.</MudText>
+                        <MudTable Items="channelAllocations" Dense="true">
+                            <HeaderContent><MudTh>Gerät</MudTh><MudTh>Kanal</MudTh><MudTh>Verwendung</MudTh><MudTh>Schritte</MudTh><MudTh>Profilkonflikte</MudTh></HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.DeviceKey</MudTd><MudTd>@context.Channel</MudTd><MudTd>@context.Usage</MudTd><MudTd>@context.Steps</MudTd>
+                                <MudTd>@(context.ConflictingChannels.Count == 0 ? "—" : string.Join(", ", context.ConflictingChannels))</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                        @foreach (var allocation in channelAllocations.Where(item => item.FunctionConflict))
+                        {
+                            <MudAlert Severity="Severity.Warning" Class="mt-2">Kanal @allocation.Channel an @allocation.DeviceKey wird mit mehreren Messfunktionen belegt.</MudAlert>
+                        }
+                        @foreach (var allocation in channelAllocations.Where(item => item.ConflictingChannels.Count > 0))
+                        {
+                            <MudAlert Severity="Severity.Error" Class="mt-2">Geräteprofil-Konflikt: Kanal @allocation.Channel an @allocation.DeviceKey darf nicht zusammen mit Kanal @string.Join(", ", allocation.ConflictingChannels) belegt werden.</MudAlert>
+                        }
+                    }
+                    @if (selectedPlan.Status == PlanStatus.Draft)
+                    {
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.h6">Ausführungsplan-Vorschau</MudText>
+                        <MudText Typo="Typo.body2" Class="my-2">Die Vorschau verwendet die Geräteprofile des Prüfsystemtyps. Treiber und Adressen kommen erst beim Lauf vom jeweiligen Prüfsystem.</MudText>
+                        <MudButton Variant="Variant.Outlined" OnClick="CreatePreview" Disabled="busy">Vorschau erstellen</MudButton>
+                        @if (executionPlan is not null)
+                        {
+                            <MudAlert Severity="Severity.Info" Class="my-3">
+                                <strong>Init</strong>: @executionPlan.Init.Configurations.Count Konfiguration(en)
+                                · <strong>Schritte</strong>: @executionPlan.Steps.Count
+                                · <strong>Abschluss</strong>: @executionPlan.Cleanup.SafeStateDeviceKeys.Count Safe-State-Aufruf/Aufrufe
+                            </MudAlert>
+                            @if (profileWarnings.Count > 0)
+                            {
+                                <MudAlert Severity="Severity.Warning" Class="my-2">
+                                    @foreach (var warning in profileWarnings)
+                                    {
+                                        <div>@warning</div>
+                                    }
+                                </MudAlert>
+                            }
+                            <pre class="plan-preview">@ExecutionPlanSerializer.Serialize(executionPlan)</pre>
+                            @if (profileWarnings.Count > 0)
+                            {
+                                <MudAlert Severity="Severity.Error" Class="my-2">Freigabe gesperrt: Für mindestens ein verwendetes Geräteprofil sind sicherheitsrelevante Datenblattangaben noch nicht verifiziert.</MudAlert>
+                            }
+                            @if (channelAllocations.Any(item => item.ConflictingChannels.Count > 0))
+                            {
+                                <MudAlert Severity="Severity.Error" Class="my-2">Freigabe gesperrt: Die Kanalbelegung verletzt eine im Geräteprofil deklarierte Kanalpaar-Regel.</MudAlert>
+                            }
+                            <MudButton Color="Color.Success" Variant="Variant.Filled" Disabled="@(busy || !CanRelease)" OnClick="ReleaseAsync">Prüfplan freigeben</MudButton>
+                        }
+                    }
+                    else if (selectedPlan.Status == PlanStatus.Released)
+                    {
+                        <MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="RetireAsync" Disabled="busy">Zurückziehen</MudButton>
+                    }
+                    @if (selectedPlan.Status != PlanStatus.Draft)
+                    {
+                        <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="CreateVersionAsync" Disabled="busy" Class="ml-2">Neue Version daraus erstellen</MudButton>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private List<TestPlan> plans = [];
+    private List<TestSystemType> systems = [];
+    private List<Station> stations = [];
+    private IReadOnlyDictionary<string, DeviceDefinition> systemDefinitions = new Dictionary<string, DeviceDefinition>(StringComparer.Ordinal);
+    private List<ChannelAllocationAnalyzer.ChannelAllocation> channelAllocations = [];
+    private List<ChannelProfile> availableChannels = [];
+    private List<string> availableFunctions = [];
+    private List<string> profileWarnings = [];
+    // Read-only snapshot of the selected plan; every change is written through a fresh database context.
+    private TestPlan? selectedPlan;
+    private Guid? editSystemId;
+    private DeviceProfile? selectedProfile;
+    private ExecutionPlan? executionPlan;
+    private string newArticle = "";
+    private string newFz = "";
+    private string stepName = "";
+    private StepType stepType = StepType.Measure;
+    private string? stepDeviceKey;
+    private string measureFunction = "VOLT:DC";
+    private int measureChannel;
+    private string measureRangeInput = "";
+    private string measureNplcInput = "";
+    private string limitLowInput = "";
+    private string limitHighInput = "";
+    private MeasurementUnit? measureUnit = MeasurementUnit.Volt;
+    private bool breakpoint;
+    private Guid? editingStepId;
+    private string parametersJson = "{}";
+    private string? errorMessage;
+    private bool busy;
+
+    private bool CanRelease => PlanReleasePolicy.IsAllowed(profileWarnings, channelAllocations);
+    // Changing the type later would silently break the device references of the steps.
+    private bool CanChangeSystem => selectedPlan is not null && selectedPlan.Steps.All(step => step.DeviceKey is null);
+    private TestSystemType? SelectedSystem => systems.SingleOrDefault(system => system.Id == selectedPlan?.TestSystemTypeId);
+    private List<string> StepsWithUnknownDevices => selectedPlan is null || SelectedSystem is null
+        ? []
+        : selectedPlan.Steps.Where(step => step.DeviceKey is not null && !systemDefinitions.ContainsKey(step.DeviceKey))
+            .OrderBy(step => step.Order).Select(step => $"{step.Order + 1}. {step.Name} ({step.DeviceKey})").ToList();
+
+    protected override Task OnInitializedAsync() => RunAsync(() => ReloadAsync(null));
+
+    /// <summary>
+    /// Runs one user action at a time: clicks during a running action are ignored. Expected failures are shown
+    /// as German message and the page is reloaded from the database.
+    /// </summary>
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (busy) return;
+        busy = true;
+        errorMessage = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            ShowError(EditorErrors.ToGerman(exception));
+            await TryReloadAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task TryReloadAsync()
+    {
+        try
+        {
+            await ReloadAsync(selectedPlan?.Id);
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            ShowError(EditorErrors.ToGerman(exception));
+        }
+    }
+
+    private async Task ReloadAsync(Guid? planId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        plans = await db.TestPlans.AsNoTracking()
+            .OrderBy(item => item.ArtNr).ThenBy(item => item.Fz).ThenBy(item => item.Version).ToListAsync();
+        systems = await db.TestSystemTypes.AsNoTracking().Include(item => item.Devices)
+            .OrderBy(item => item.Name).ToListAsync();
+        stations = await db.Stations.AsNoTracking().Include(item => item.Devices)
+            .OrderBy(item => item.Name).ToListAsync();
+        selectedPlan = planId is Guid id
+            ? await db.TestPlans.AsNoTracking().Include(item => item.Steps.OrderBy(step => step.Order))
+                .SingleOrDefaultAsync(item => item.Id == id)
+            : null;
+        editSystemId = selectedPlan?.TestSystemTypeId;
+        ClearPreview();
+        LoadSystemDefinitions();
+        UpdateChannelAllocations();
+    }
+
+    private Task ReloadSelectedAsync() => RunAsync(() => ReloadAsync(selectedPlan?.Id));
+
+    private Task SelectPlanAsync(Guid id) => RunAsync(async () =>
+    {
+        CancelStepEdit();
+        await ReloadAsync(id);
+    });
+
+    /// <summary>Test systems of the plan's type, split by whether all devices used by the steps are installed.</summary>
+    private (List<string> Runnable, List<string> NotRunnable) StationAvailability()
+    {
+        var runnable = new List<string>();
+        var notRunnable = new List<string>();
+        if (selectedPlan?.TestSystemTypeId is not Guid typeId) return (runnable, notRunnable);
+        var required = selectedPlan.Steps.Select(step => step.DeviceKey).ToList();
+        foreach (var station in stations.Where(item => item.TestSystemTypeId == typeId))
+        {
+            var missing = StationDevices.Missing(required, station);
+            if (missing.Count == 0) runnable.Add(station.Name);
+            else notRunnable.Add($"{station.Name} (fehlt: {string.Join(", ", missing)})");
+        }
+        return (runnable, notRunnable);
+    }
+
+    private string SystemName(Guid? id) => id is null
+        ? "kein Prüfsystemtyp"
+        : systems.SingleOrDefault(system => system.Id == id)?.Name ?? id.Value.ToString();
+
+    private IEnumerable<SystemTypeDevice> DevicesFor(StepType type)
+    {
+        var capability = type switch
+        {
+            StepType.Measure or StepType.Relay => DeviceCapability.SwitchMultimeter,
+            StepType.SetPower => DeviceCapability.PowerSupply,
+            StepType.Program => DeviceCapability.Programmer,
+            StepType.Scan => DeviceCapability.BarcodeScanner,
+            _ => (DeviceCapability?)null
+        };
+        return (SelectedSystem?.Devices ?? []).Where(device => systemDefinitions.TryGetValue(device.DeviceKey, out var definition)
+                && (capability is null || definition.Profile.Capabilities.Contains(capability.Value)))
+            .OrderBy(device => device.DeviceKey, StringComparer.Ordinal);
+    }
+
+    private static string DeviceText(SystemTypeDevice device) => string.IsNullOrWhiteSpace(device.Description)
+        ? $"{device.DeviceKey} — {DeviceCatalog.Describe(device.Model, device.OptionsJson)}"
+        : $"{device.DeviceKey} — {DeviceCatalog.Describe(device.Model, device.OptionsJson)} ({device.Description})";
+
+    private void LoadSystemDefinitions()
+    {
+        systemDefinitions = new Dictionary<string, DeviceDefinition>(StringComparer.Ordinal);
+        var system = SelectedSystem;
+        if (system is null) return;
+        try
+        {
+            systemDefinitions = SystemTypeDevices.CreateDefinitions(system);
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            ShowError("Geräteprofile des Prüfsystemtyps konnten nicht geladen werden: " + EditorErrors.ToGerman(exception));
+        }
+    }
+
+    private void UpdateChannelAllocations()
+    {
+        channelAllocations = [];
+        if (selectedPlan is null) return;
+        try
+        {
+            var profiles = systemDefinitions.ToDictionary(item => item.Key, item => item.Value.Profile, StringComparer.Ordinal);
+            channelAllocations = ChannelAllocationAnalyzer.Analyze(selectedPlan, profiles).ToList();
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            ShowError("Kanalbelegung konnte nicht ermittelt werden: " + EditorErrors.ToGerman(exception));
+        }
+    }
+
+    private void StepTypeChanged(StepType value)
+    {
+        stepType = value;
+        parametersJson = DefaultParameters(value);
+        var deviceStillFits = stepDeviceKey is not null && DevicesFor(value).Any(device => device.DeviceKey == stepDeviceKey);
+        DeviceChanged(deviceStillFits ? stepDeviceKey : null);
+    }
+
+    private void MeasurementFunctionChanged(string value)
+    {
+        measureFunction = value;
+        measureUnit = UnitForFunction(value);
+    }
+
+    private void ChannelChanged(int channel)
+    {
+        measureChannel = channel;
+        availableFunctions = selectedProfile?.GetChannel(channel).SupportedFunctions
+            .Order(StringComparer.Ordinal).ToList() ?? [];
+        if (!availableFunctions.Contains(measureFunction, StringComparer.Ordinal) && availableFunctions.Count > 0)
+            MeasurementFunctionChanged(availableFunctions[0]);
+    }
+
+    private Task CreatePlanAsync() => RunAsync(async () =>
+    {
+        var artNr = newArticle.Trim();
+        var fz = newFz.Trim();
+        if (artNr.Length == 0 || fz.Length == 0)
+        {
+            ShowError("Bitte Artikelnummer und Fertigungszustand eingeben.");
+            return;
+        }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var highestVersion = await db.TestPlans.Where(item => item.ArtNr == artNr && item.Fz == fz)
+            .Select(item => (int?)item.Version).MaxAsync() ?? 0;
+        var plan = new TestPlan { ArtNr = artNr, Fz = fz, Version = checked(highestVersion + 1) };
+        db.TestPlans.Add(plan);
+        await db.SaveChangesAsync();
+        newArticle = "";
+        newFz = "";
+        CancelStepEdit();
+        await ReloadAsync(plan.Id);
+        Notify("Entwurf erstellt.", Severity.Success);
+    });
+
+    private Task SavePlanAsync() => RunAsync(async () =>
+    {
+        if (selectedPlan is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var plan = await db.TestPlans.Include(item => item.Steps).SingleOrDefaultAsync(item => item.Id == selectedPlan.Id)
+            ?? throw new PlanNotFoundException("Der Prüfplan existiert nicht mehr.");
+        if (plan.Status != PlanStatus.Draft)
+            throw new PlanConflictException("Nur Entwürfe können geändert werden.");
+        if (plan.TestSystemTypeId != editSystemId && plan.Steps.Any(step => step.DeviceKey is not null))
+            throw new PlanConflictException("Der Prüfsystemtyp kann nicht mehr geändert werden, weil Schritte bereits Geräte verwenden.");
+        plan.TestSystemTypeId = editSystemId;
+        await db.SaveChangesAsync();
+        CancelStepEdit();
+        await ReloadAsync(plan.Id);
+        Notify("Prüfplan gespeichert.", Severity.Success);
+    });
+
+    private void DeviceChanged(string? key)
+    {
+        stepDeviceKey = key;
+        selectedProfile = null;
+        availableChannels = [];
+        availableFunctions = [];
+        if (string.IsNullOrWhiteSpace(key) || !systemDefinitions.TryGetValue(key, out var definition)) return;
+        selectedProfile = definition.Profile;
+        availableChannels = selectedProfile.Channels.ToList();
+        if (availableChannels.Count > 0)
+        {
+            measureChannel = availableChannels[0].Number;
+            availableFunctions = selectedProfile.GetChannel(measureChannel).SupportedFunctions
+                .Order(StringComparer.Ordinal).ToList();
+        }
+        if (availableFunctions.Count > 0) measureFunction = availableFunctions[0];
+        measureUnit = UnitForFunction(measureFunction);
+    }
+
+    private void EditStep(Guid id)
+    {
+        if (selectedPlan is null || busy) return;
+        var step = selectedPlan.Steps.SingleOrDefault(item => item.Id == id);
+        if (step is null) return;
+        errorMessage = null;
+        if (RequiresDevice(step.StepType) && (step.DeviceKey is null || !systemDefinitions.ContainsKey(step.DeviceKey)))
+        {
+            ShowError($"Gerät '{step.DeviceKey}' ist im Prüfsystemtyp des Plans nicht vorhanden. Wähle den passenden Prüfsystemtyp oder ergänze das Gerät.");
+            return;
+        }
+
+        try
+        {
+            editingStepId = step.Id;
+            stepName = step.Name;
+            stepType = step.StepType;
+            breakpoint = step.BreakpointFlag;
+            parametersJson = step.ParametersJson;
+            DeviceChanged(step.DeviceKey);
+            if (step.StepType != StepType.Measure) return;
+
+            var measure = StepParameters.Deserialize<MeasureParameters>(step.ParametersJson);
+            if (availableChannels.Any(channel => channel.Number == measure.Channel))
+                ChannelChanged(measure.Channel);
+            measureChannel = measure.Channel;
+            measureFunction = measure.Function;
+            measureUnit = step.Unit ?? UnitForFunction(measure.Function);
+            measureRangeInput = measure.Range.HasValue ? Units.Format(measure.Range.Value, measureUnit.Value, culture: EditorInput.German) : "";
+            measureNplcInput = measure.Nplc.HasValue ? EditorInput.FormatNumber(measure.Nplc.Value) : "";
+            limitLowInput = step.LimitLow.HasValue ? Units.Format(step.LimitLow.Value, measureUnit.Value, culture: EditorInput.German) : "";
+            limitHighInput = step.LimitHigh.HasValue ? Units.Format(step.LimitHigh.Value, measureUnit.Value, culture: EditorInput.German) : "";
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            CancelStepEdit();
+            ShowError("Der Schritt kann nicht bearbeitet werden: " + EditorErrors.ToGerman(exception));
+        }
+    }
+
+    private void CancelStepEdit()
+    {
+        editingStepId = null;
+        stepName = "";
+        stepType = StepType.Measure;
+        parametersJson = DefaultParameters(stepType);
+        DeviceChanged(null);
+        ClearStepInputs();
+    }
+
+    private void ClearStepInputs()
+    {
+        measureRangeInput = "";
+        measureNplcInput = "";
+        limitLowInput = "";
+        limitHighInput = "";
+        breakpoint = false;
+    }
+
+    private Task SaveStepAsync() => RunAsync(async () =>
+    {
+        if (selectedPlan is null) return;
+        if (string.IsNullOrWhiteSpace(stepName))
+        {
+            ShowError("Bitte einen Schrittnamen eingeben.");
+            return;
+        }
+        if (RequiresDevice(stepType) && string.IsNullOrWhiteSpace(stepDeviceKey))
+        {
+            ShowError("Bitte ein Gerät des Prüfsystemtyps auswählen.");
+            return;
+        }
+
+        var parameters = parametersJson;
+        var unit = (MeasurementUnit?)null;
+        var low = (double?)null;
+        var high = (double?)null;
+        if (stepType == StepType.Measure)
+        {
+            if (selectedProfile is null) throw new InvalidOperationException("Für Messschritte wird ein gültiges Geräteprofil benötigt.");
+            unit = measureUnit ?? throw new InvalidOperationException("Für die Messgröße ist keine Einheit bekannt.");
+            var range = EditorInput.ParseOptionalSi(measureRangeInput, unit.Value, "Bereich");
+            var nplc = EditorInput.ParseOptionalNumber(measureNplcInput, "NPLC");
+            new MeasurementConfiguration(measureChannel, measureFunction, range, nplc).Validate(selectedProfile);
+            low = EditorInput.ParseOptionalSi(limitLowInput, unit.Value, "Grenzwert unten");
+            high = EditorInput.ParseOptionalSi(limitHighInput, unit.Value, "Grenzwert oben");
+            parameters = StepParameters.Serialize(new MeasureParameters(measureChannel, measureFunction, range, nplc));
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var isEditing = editingStepId.HasValue;
+        TestStep step;
+        if (isEditing)
+        {
+            step = await db.TestSteps.SingleOrDefaultAsync(item => item.Id == editingStepId!.Value && item.TestPlanId == selectedPlan.Id)
+                ?? throw new PlanConflictException("Der bearbeitete Schritt existiert nicht mehr.");
+        }
+        else
+        {
+            var lastOrder = await db.TestSteps.Where(item => item.TestPlanId == selectedPlan.Id).MaxAsync(item => (int?)item.Order);
+            step = new TestStep { TestPlanId = selectedPlan.Id, Order = (lastOrder ?? -1) + 1 };
+            db.TestSteps.Add(step);
+        }
+        step.Name = stepName.Trim();
+        step.StepType = stepType;
+        step.DeviceKey = RequiresDevice(stepType) ? stepDeviceKey : null;
+        step.ParametersJson = parameters;
+        step.Unit = unit;
+        step.LimitLow = low;
+        step.LimitHigh = high;
+        step.BreakpointFlag = breakpoint;
+        StepParameters.Validate(step);
+        await db.SaveChangesAsync();
+
+        editingStepId = null;
+        stepName = "";
+        parametersJson = DefaultParameters(stepType);
+        ClearStepInputs();
+        await ReloadAsync(selectedPlan.Id);
+        Notify(isEditing ? "Schritt gespeichert." : "Schritt hinzugefügt.", Severity.Success);
+    });
+
+    private Task RemoveStepAsync(Guid id) => RunAsync(async () =>
+    {
+        if (selectedPlan is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var steps = await db.TestSteps.Where(item => item.TestPlanId == selectedPlan.Id).OrderBy(item => item.Order).ToListAsync();
+        var step = steps.SingleOrDefault(item => item.Id == id)
+            ?? throw new PlanConflictException("Der Schritt existiert nicht mehr.");
+        steps.Remove(step);
+        db.TestSteps.Remove(step);
+        await SaveOrderAsync(db, steps);
+        if (editingStepId == id) CancelStepEdit();
+        await ReloadAsync(selectedPlan.Id);
+    });
+
+    private Task MoveStepAsync(Guid id, int delta) => RunAsync(async () =>
+    {
+        if (selectedPlan is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var steps = await db.TestSteps.Where(item => item.TestPlanId == selectedPlan.Id).OrderBy(item => item.Order).ToListAsync();
+        var index = steps.FindIndex(item => item.Id == id);
+        var other = index + delta;
+        if (index < 0 || other < 0 || other >= steps.Count)
+            throw new PlanConflictException("Die Schrittliste hat sich zwischenzeitlich geändert.");
+        (steps[index], steps[other]) = (steps[other], steps[index]);
+        await SaveOrderAsync(db, steps);
+        await ReloadAsync(selectedPlan.Id);
+    });
+
+    /// <summary>Saves the new order of the steps (and a pending removal) in one transaction.</summary>
+    private static async Task SaveOrderAsync(TestpilotDbContext db, List<TestStep> ordered)
+    {
+        // Two passes avoid collisions with the unique (plan, order) index while steps change places.
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        for (var index = 0; index < ordered.Count; index++) ordered[index].Order = 1_000_000 + index;
+        await db.SaveChangesAsync();
+        for (var index = 0; index < ordered.Count; index++) ordered[index].Order = index;
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+    }
+
+    private void ClearPreview()
+    {
+        executionPlan = null;
+        profileWarnings = [];
+    }
+
+    private void CreatePreview()
+    {
+        if (selectedPlan is null || busy) return;
+        ClearPreview();
+        errorMessage = null;
+        try
+        {
+            if (SelectedSystem is null && selectedPlan.Steps.Any(step => step.DeviceKey is not null))
+                throw new InvalidOperationException("Für die Vorschau muss der Plan einem Prüfsystemtyp zugeordnet sein.");
+            var deviceDefinitions = systemDefinitions;
+            executionPlan = Optimizer.Optimize(selectedPlan, deviceDefinitions);
+            profileWarnings = executionPlan.Devices.SelectMany(device =>
+            {
+                var profile = deviceDefinitions[device.DeviceKey].Profile;
+                return profile.SpecialCases.Concat(profile.Todos).Select(text => $"{device.DeviceKey}: {text}");
+            }).Where(text => text.Contains(DeviceProfile.DataSheetTodo, StringComparison.Ordinal)).ToList();
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            ClearPreview();
+            ShowError("Vorschau nicht möglich: " + EditorErrors.ToGerman(exception));
+        }
+    }
+
+    private Task ReleaseAsync() => RunAsync(async () =>
+    {
+        if (selectedPlan is null || executionPlan is null) return;
+        if (!CanRelease)
+        {
+            ShowError("Der Prüfplan kann aufgrund ungeklärter Profilangaben oder einer Kanalpaar-Kollision nicht freigegeben werden.");
+            return;
+        }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await new TestPlanService(db, PlanServiceLogger).ReleaseAsync(selectedPlan.Id, executionPlan);
+        await ReloadAsync(selectedPlan.Id);
+        Notify("Prüfplan freigegeben und Ausführungsplan eingefroren.", Severity.Success);
+    });
+
+    private Task RetireAsync() => RunAsync(async () =>
+    {
+        if (selectedPlan is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await new TestPlanService(db, PlanServiceLogger).RetireAsync(selectedPlan.Id);
+        await ReloadAsync(selectedPlan.Id);
+        Notify("Prüfplan zurückgezogen.", Severity.Success);
+    });
+
+    private Task CreateVersionAsync() => RunAsync(async () =>
+    {
+        if (selectedPlan is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var copy = await new TestPlanService(db, PlanServiceLogger).CreateNewVersionAsync(selectedPlan.Id);
+        CancelStepEdit();
+        await ReloadAsync(copy.Id);
+        Notify("Neuer Entwurf wurde erstellt.", Severity.Success);
+    });
+
+    private static bool RequiresDevice(StepType type) => type is StepType.Measure or StepType.Relay or StepType.SetPower or StepType.Program or StepType.Scan;
+    private static string FormatLimit(double? value, MeasurementUnit? unit) => value.HasValue && unit.HasValue
+        ? Units.FormatAuto(value.Value, unit.Value, EditorInput.German)
+        : "—";
+    private static string ChannelTypeText(ChannelType type) => type switch
+    {
+        ChannelType.Unknown => "Unbekannt",
+        ChannelType.GeneralPurpose => "Universalkanal",
+        ChannelType.Voltage => "Spannung",
+        ChannelType.Current => "Strom",
+        ChannelType.Resistance => "Widerstand",
+        ChannelType.Relay => "Relais",
+        ChannelType.PowerOutput => "Netzteilausgang",
+        _ => type.ToString()
+    };
+    private static string StepTypeText(StepType type) => type switch
+    {
+        StepType.Measure => "Messung",
+        StepType.Relay => "Relais",
+        StepType.SetPower => "Spannungsversorgung",
+        StepType.Program => "Programmieren",
+        StepType.Scan => "Barcode scannen",
+        StepType.Wait => "Warten",
+        StepType.OperatorPrompt => "Bedienerabfrage",
+        StepType.External => "Externes Programm",
+        StepType.CustomCode => "Sonderaktion",
+        _ => type.ToString()
+    };
+    private static MeasurementUnit UnitForFunction(string function) => function switch
+    {
+        "VOLT:DC" or "VOLT:AC" => MeasurementUnit.Volt,
+        "CURR:DC" or "CURR:AC" => MeasurementUnit.Ampere,
+        "RES" or "FRES" => MeasurementUnit.Ohm,
+        _ => throw new ArgumentException($"Unbekannte Messfunktion '{function}'.")
+    };
+    private static string DefaultParameters(StepType type) => type switch
+    {
+        StepType.Relay => "{\"channel\":1,\"closed\":true}",
+        StepType.SetPower => "{\"channel\":1,\"voltage\":3.3,\"currentLimit\":0.5,\"enabled\":true}",
+        StepType.Program => "{\"filePath\":\"firmware.hex\"}",
+        StepType.Scan => "{}",
+        StepType.Wait => "{\"durationMilliseconds\":100}",
+        StepType.OperatorPrompt => "{\"message\":\"Bitte prüfen\"}",
+        StepType.External => "{\"command\":\"program.exe\",\"arguments\":[]}",
+        StepType.CustomCode => "{\"handlerKey\":\"custom\",\"parameters\":{}}",
+        _ => "{}"
+    };
+    private static string StatusText(PlanStatus status) => status switch
+    {
+        PlanStatus.Draft => "Entwurf", PlanStatus.Released => "Freigegeben", PlanStatus.Retired => "Zurückgezogen", _ => status.ToString()
+    };
+    private static Color StatusColor(PlanStatus status) => status switch
+    {
+        PlanStatus.Draft => Color.Info, PlanStatus.Released => Color.Success, PlanStatus.Retired => Color.Default, _ => Color.Default
+    };
+    private void Notify(string message, Severity severity) => Snackbar.Add(message, severity);
+    private void ShowError(string message)
+    {
+        errorMessage = message;
+        Notify(message, Severity.Error);
+    }
+}

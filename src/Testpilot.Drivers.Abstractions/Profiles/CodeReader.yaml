@@ -1,0 +1,23 @@
+# Profile for code readers used to read the board serial number:
+# SensopartTcp (SensoPart sensor) and DatalogicMatrixSerial (Datalogic Matrix 120 / Matrix 200).
+# A scan step uses no channel; the single channel only gives the editor a device entry.
+id: code-reader
+model: "Code reader (SensoPart / Datalogic Matrix 120/200)"
+channelCount: 1
+channelNumbering: "single reader, no channel selection"
+capabilities:
+  - BarcodeScanner
+state:
+  settings: []
+  invalidatedByCommand: {}
+  unknownCommandInvalidatesAll: true
+channels:
+  - number: 1
+    name: "Reader"
+    type: GeneralPurpose
+    supportedFunctions: []
+    valueRanges: {}
+specialCases:
+  - "The readers deliver the board serial number: exactly 10 digits (legacy Seriennummer.c, Scanner.c). Anything else is a read error."
+  - "Datalogic Matrix 200 is configured with VisiSet, Matrix 120 with DL.CODE; the driver only sends the trigger 'R'."
+todos: []

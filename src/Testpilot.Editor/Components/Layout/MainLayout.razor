@@ -1,6 +1,22 @@
 ﻿@inherits LayoutComponentBase
 
-@Body
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudText Typo="Typo.h6" Class="ms-2">Testpilot — Prüfplaneditor</MudText>
+        <MudSpacer />
+        <MudButton Href="/" Color="Color.Inherit" Variant="Variant.Text">Übersicht</MudButton>
+        <MudButton Href="/plans" Color="Color.Inherit" Variant="Variant.Text">Prüfpläne</MudButton>
+        <MudButton Href="/system-types" Color="Color.Inherit" Variant="Variant.Text">Prüfsystemtypen</MudButton>
+        <MudButton Href="/stations" Color="Color.Inherit" Variant="Variant.Text">Prüfsysteme</MudButton>
+    </MudAppBar>
+    <MudMainContent Class="pa-6">
+        @Body
+    </MudMainContent>
+</MudLayout>
 
 <div id="blazor-error-ui" data-nosnippet>
     Ein unerwarteter Fehler ist aufgetreten.

@@ -1,0 +1,31 @@
+# DeviceProfile YAML schema example. This file is documentation, not a loaded instrument profile.
+id: example-profile
+model: Example model
+channelCount: 1
+channelNumbering: "channel"
+capabilities:
+  - SwitchMultimeter
+state:
+  settings: [function, range, nplc]
+  # Command names: relay, setPower, program, scan,
+  # configure (another channel of the device is configured), measure (another channel is measured).
+  # External and CustomCode steps always invalidate every channel of every device.
+  # A missing command is "unknown" and handled by unknownCommandInvalidatesAll.
+  invalidatedByCommand:
+    relay: [function, range, nplc]
+    configure: []
+    measure: []
+  unknownCommandInvalidatesAll: true
+channels:
+  - number: 1
+    name: Channel 1
+    # Unknown, GeneralPurpose, Voltage, Current, Resistance, Relay, PowerOutput
+    # (PowerOutput channels use the functions VOLT and CURR, see Profiles\HMP*.yaml)
+    type: GeneralPurpose
+    supportedFunctions:
+      - VOLT:DC
+    valueRanges:
+      VOLT:DC: [0.0, 10.0]
+    conflictsWithChannels: []
+specialCases: []
+todos: []

@@ -61,6 +61,9 @@ namespace Testpilot.Data.Migrations.PostgreSql
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<bool>("Simulated")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("SoftwareVersion")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -153,6 +156,10 @@ namespace Testpilot.Data.Migrations.PostgreSql
                     b.Property<int>("StepType")
                         .HasColumnType("integer");
 
+                    b.Property<string>("TextValue")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
                     b.Property<int?>("Unit")
                         .HasColumnType("integer");
 
@@ -172,15 +179,25 @@ namespace Testpilot.Data.Migrations.PostgreSql
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("TestSystemTypeId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .IsUnique();
+
+                    b.HasIndex("TestSystemTypeId");
 
                     b.ToTable("Stations");
                 });
@@ -215,6 +232,41 @@ namespace Testpilot.Data.Migrations.PostgreSql
                     b.ToTable("StationDevices");
                 });
 
+            modelBuilder.Entity("Testpilot.Core.SystemTypeDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("DeviceKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("OptionsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TestSystemTypeId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TestSystemTypeId", "DeviceKey")
+                        .IsUnique();
+
+                    b.ToTable("SystemTypeDevices");
+                });
+
             modelBuilder.Entity("Testpilot.Core.TestPlan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -243,6 +295,9 @@ namespace Testpilot.Data.Migrations.PostgreSql
                         .IsConcurrencyToken()
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("TestSystemTypeId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .IsConcurrencyToken()
                         .HasColumnType("timestamp with time zone");
@@ -251,6 +306,8 @@ namespace Testpilot.Data.Migrations.PostgreSql
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TestSystemTypeId");
 
                     b.HasIndex("ArtNr", "Fz")
                         .IsUnique()
@@ -310,6 +367,29 @@ namespace Testpilot.Data.Migrations.PostgreSql
                     b.ToTable("TestSteps");
                 });
 
+            modelBuilder.Entity("Testpilot.Core.TestSystemType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("TestSystemTypes");
+                });
+
             modelBuilder.Entity("Testpilot.Core.RunDevice", b =>
                 {
                     b.HasOne("Testpilot.Core.Run", null)
@@ -328,6 +408,14 @@ namespace Testpilot.Data.Migrations.PostgreSql
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Testpilot.Core.Station", b =>
+                {
+                    b.HasOne("Testpilot.Core.TestSystemType", null)
+                        .WithMany()
+                        .HasForeignKey("TestSystemTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Testpilot.Core.StationDevice", b =>
                 {
                     b.HasOne("Testpilot.Core.Station", null)
@@ -335,6 +423,23 @@ namespace Testpilot.Data.Migrations.PostgreSql
                         .HasForeignKey("StationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Testpilot.Core.SystemTypeDevice", b =>
+                {
+                    b.HasOne("Testpilot.Core.TestSystemType", null)
+                        .WithMany("Devices")
+                        .HasForeignKey("TestSystemTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Testpilot.Core.TestPlan", b =>
+                {
+                    b.HasOne("Testpilot.Core.TestSystemType", null)
+                        .WithMany()
+                        .HasForeignKey("TestSystemTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Testpilot.Core.TestStep", b =>
@@ -361,6 +466,11 @@ namespace Testpilot.Data.Migrations.PostgreSql
             modelBuilder.Entity("Testpilot.Core.TestPlan", b =>
                 {
                     b.Navigation("Steps");
+                });
+
+            modelBuilder.Entity("Testpilot.Core.TestSystemType", b =>
+                {
+                    b.Navigation("Devices");
                 });
 #pragma warning restore 612, 618
         }

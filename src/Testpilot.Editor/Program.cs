@@ -1,15 +1,20 @@
 using Microsoft.EntityFrameworkCore;
 using Serilog;
-using Testpilot.Core;
 using Testpilot.Data;
 using Testpilot.Editor.Components;
+using Testpilot.Editor.Services;
+using Testpilot.Planning;
+using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSerilog(configuration => configuration.ReadFrom.Configuration(builder.Configuration));
+builder.Services.AddMudServices();
 builder.Services.AddTestpilotData(builder.Configuration);
-builder.Services.AddSingleton(services => new RunJsonExporter(
-    builder.Configuration["Export:Directory"] ?? throw new InvalidOperationException("Export:Directory is required."),
-    services.GetRequiredService<ILogger<RunJsonExporter>>()));
+// The pages create one short-lived context per user action instead of sharing the scoped context of the circuit.
+builder.Services.AddSingleton<IDbContextFactory<TestpilotDbContext>, EditorDbContextFactory>();
+builder.Services.AddSingleton<ExecutionPlanOptimizer>();
+builder.Services.AddScoped<StationYamlService>();
+builder.Services.AddScoped<TestSystemTypeYamlService>();
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 
 var app = builder.Build();

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Testpilot.Core;
 
 namespace Testpilot.Data;
@@ -30,6 +31,36 @@ public static class DatabaseConfiguration
         services.AddScoped<TestPlanService>();
         services.AddScoped<ITestPlanLookup>(serviceProvider => serviceProvider.GetRequiredService<TestPlanService>());
         return services;
+    }
+
+    /// <summary>
+    /// Creates new contexts for the configured provider, for applications that need one short-lived context per action
+    /// (the Blazor editor). Keep the provider names in sync with <see cref="AddTestpilotData"/>.
+    /// </summary>
+    public static Func<TestpilotDbContext> CreateContextFactory(IConfiguration configuration, ILoggerFactory loggerFactory)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        var provider = configuration["Database:Provider"] ?? throw new InvalidOperationException("Database:Provider is required.");
+        var connection = configuration.GetConnectionString("Testpilot");
+        ArgumentException.ThrowIfNullOrWhiteSpace(connection);
+        switch (provider)
+        {
+            case "Sqlite":
+                var sqlite = new DbContextOptionsBuilder<SqliteTestpilotDbContext>()
+                    .UseSqlite(connection).UseLoggerFactory(loggerFactory).Options;
+                return () => new SqliteTestpilotDbContext(sqlite);
+            case "SqlServer":
+                var sqlServer = new DbContextOptionsBuilder<SqlServerTestpilotDbContext>()
+                    .UseSqlServer(connection).UseLoggerFactory(loggerFactory).Options;
+                return () => new SqlServerTestpilotDbContext(sqlServer);
+            case "PostgreSql":
+                var postgreSql = new DbContextOptionsBuilder<PostgreSqlTestpilotDbContext>()
+                    .UseNpgsql(connection).UseLoggerFactory(loggerFactory).Options;
+                return () => new PostgreSqlTestpilotDbContext(postgreSql);
+            default:
+                throw new InvalidOperationException($"Unsupported database provider '{provider}'. Use Sqlite, SqlServer or PostgreSql.");
+        }
     }
 }
 

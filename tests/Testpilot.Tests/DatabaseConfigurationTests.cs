@@ -25,7 +25,9 @@ public sealed class DatabaseConfigurationTests
         var database = scope.ServiceProvider.GetRequiredService<TestpilotDbContext>();
         Assert.Same(scope.ServiceProvider.GetRequiredService<TestPlanService>(), scope.ServiceProvider.GetRequiredService<ITestPlanLookup>());
         Assert.Equal(expectedName, database.Database.ProviderName);
-        Assert.Single(database.Database.GetMigrations());
+        var migrations = database.Database.GetMigrations().ToArray();
+        Assert.Contains(migrations, id => id.EndsWith("_InitialCreate", StringComparison.Ordinal));
+        Assert.Contains(migrations, id => id.EndsWith("_Phase3RunStepTextValue", StringComparison.Ordinal));
         var index = database.Model.FindEntityType(typeof(TestPlan))!.GetIndexes().Single(x => x.GetDatabaseName() == "IX_TestPlans_OneReleasedVersion");
         Assert.True(index.IsUnique);
         Assert.Equal(filter, index.GetFilter());

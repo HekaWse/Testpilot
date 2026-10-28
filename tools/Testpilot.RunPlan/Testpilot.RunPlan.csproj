@@ -2,6 +2,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Testpilot.Sequencer\Testpilot.Sequencer.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Drivers\Testpilot.Drivers.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Sap\Testpilot.Sap.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\src\Testpilot.Editor\appsettings.json" Link="appsettings.json"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

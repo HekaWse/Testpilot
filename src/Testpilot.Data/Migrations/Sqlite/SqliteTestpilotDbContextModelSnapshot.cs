@@ -56,6 +56,9 @@ namespace Testpilot.Data.Migrations.Sqlite
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("Simulated")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("SoftwareVersion")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -148,6 +151,10 @@ namespace Testpilot.Data.Migrations.Sqlite
                     b.Property<int>("StepType")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("TextValue")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
                     b.Property<int?>("Unit")
                         .HasColumnType("INTEGER");
 
@@ -167,15 +174,25 @@ namespace Testpilot.Data.Migrations.Sqlite
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("TestSystemTypeId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .IsUnique();
+
+                    b.HasIndex("TestSystemTypeId");
 
                     b.ToTable("Stations");
                 });
@@ -210,6 +227,41 @@ namespace Testpilot.Data.Migrations.Sqlite
                     b.ToTable("StationDevices");
                 });
 
+            modelBuilder.Entity("Testpilot.Core.SystemTypeDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeviceKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OptionsJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TestSystemTypeId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TestSystemTypeId", "DeviceKey")
+                        .IsUnique();
+
+                    b.ToTable("SystemTypeDevices");
+                });
+
             modelBuilder.Entity("Testpilot.Core.TestPlan", b =>
                 {
                     b.Property<Guid>("Id")
@@ -238,6 +290,9 @@ namespace Testpilot.Data.Migrations.Sqlite
                         .IsConcurrencyToken()
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid?>("TestSystemTypeId")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .IsConcurrencyToken()
                         .HasColumnType("TEXT");
@@ -246,6 +301,8 @@ namespace Testpilot.Data.Migrations.Sqlite
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("TestSystemTypeId");
 
                     b.HasIndex("ArtNr", "Fz")
                         .IsUnique()
@@ -305,6 +362,29 @@ namespace Testpilot.Data.Migrations.Sqlite
                     b.ToTable("TestSteps");
                 });
 
+            modelBuilder.Entity("Testpilot.Core.TestSystemType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("TestSystemTypes");
+                });
+
             modelBuilder.Entity("Testpilot.Core.RunDevice", b =>
                 {
                     b.HasOne("Testpilot.Core.Run", null)
@@ -323,6 +403,14 @@ namespace Testpilot.Data.Migrations.Sqlite
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Testpilot.Core.Station", b =>
+                {
+                    b.HasOne("Testpilot.Core.TestSystemType", null)
+                        .WithMany()
+                        .HasForeignKey("TestSystemTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("Testpilot.Core.StationDevice", b =>
                 {
                     b.HasOne("Testpilot.Core.Station", null)
@@ -330,6 +418,23 @@ namespace Testpilot.Data.Migrations.Sqlite
                         .HasForeignKey("StationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Testpilot.Core.SystemTypeDevice", b =>
+                {
+                    b.HasOne("Testpilot.Core.TestSystemType", null)
+                        .WithMany("Devices")
+                        .HasForeignKey("TestSystemTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Testpilot.Core.TestPlan", b =>
+                {
+                    b.HasOne("Testpilot.Core.TestSystemType", null)
+                        .WithMany()
+                        .HasForeignKey("TestSystemTypeId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Testpilot.Core.TestStep", b =>
@@ -356,6 +461,11 @@ namespace Testpilot.Data.Migrations.Sqlite
             modelBuilder.Entity("Testpilot.Core.TestPlan", b =>
                 {
                     b.Navigation("Steps");
+                });
+
+            modelBuilder.Entity("Testpilot.Core.TestSystemType", b =>
+                {
+                    b.Navigation("Devices");
                 });
 #pragma warning restore 612, 618
         }

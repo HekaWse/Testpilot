@@ -1,0 +1,211 @@
+<Window x:Class="Testpilot.Operator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Testpilot.Operator"
+        Title="Testpilot – Prüfung" Width="1200" Height="800" MinWidth="900" MinHeight="600"
+        WindowState="Maximized" FontSize="16">
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding StartCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+        <KeyBinding Key="Space" Modifiers="Control" Command="{Binding ContinueCommand}" />
+    </Window.InputBindings>
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="16,6" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="MinWidth" Value="110" />
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header: station, operator, version -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,8">
+            <TextBlock DockPanel.Dock="Left" FontSize="22" FontWeight="Bold" VerticalAlignment="Center"
+                       ToolTip="{Binding SystemConfigurationText}">
+                <Run Text="Prüfsystem " /><Run Text="{Binding Station, Mode=OneWay}" />
+                <Run Text="{Binding SystemTypeText, Mode=OneWay}" FontWeight="Normal" />
+            </TextBlock>
+            <TextBlock DockPanel.Dock="Right" VerticalAlignment="Center" Foreground="Gray" Margin="16,0,0,0"
+                       Text="{Binding SoftwareVersion, StringFormat=Version {0}}" />
+            <Border DockPanel.Dock="Right" Background="LightGray" Padding="8,2" Margin="16,0,0,0" VerticalAlignment="Center"
+                    Visibility="{Binding IsAutoStart, Converter={StaticResource VisibleWhenTrue}}">
+                <TextBlock FontWeight="SemiBold" Text="{Binding FixtureStateText}" />
+            </Border>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Label Content="_Bediener:" Target="{Binding ElementName=OperatorBox}" />
+                <TextBox x:Name="OperatorBox" Width="220" IsEnabled="{Binding CanEdit}"
+                         Text="{Binding OperatorName, UpdateSourceTrigger=PropertyChanged}" />
+            </StackPanel>
+        </DockPanel>
+
+        <Border Grid.Row="1" Background="DarkOrange" Padding="8" Margin="0,0,0,8"
+                Visibility="{Binding Simulated, Converter={StaticResource VisibleWhenTrue}}">
+            <StackPanel>
+                <TextBlock Foreground="White" FontWeight="Bold" FontSize="18" HorizontalAlignment="Center"
+                           Text="SIMULATION – es werden keine echten Geräte angesprochen, die Ergebnisse sind keine echte Prüfung." />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0"
+                            Visibility="{Binding CanSimulateFixture, Converter={StaticResource VisibleWhenTrue}}">
+                    <Button Content="Adapter s_chließen (Simulation)" Command="{Binding SimulateFixtureCloseCommand}" />
+                    <CheckBox Content="Lesefehler des Code-Lesers simulieren" Foreground="White" Margin="16,0,0,0"
+                              VerticalAlignment="Center" IsChecked="{Binding SimulateReadFailure}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Order and serial number -->
+        <Grid Grid.Row="2" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Label Grid.Row="0" Grid.Column="0" Content="_FAUF:" Target="{Binding ElementName=FaufBox}" />
+            <TextBox Grid.Row="0" Grid.Column="1" x:Name="FaufBox" IsEnabled="{Binding CanEdit}"
+                     Text="{Binding Fauf, UpdateSourceTrigger=PropertyChanged}">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Enter" Command="{Binding LoadOrderCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
+            <Button Grid.Row="0" Grid.Column="2" Content="Auftrag _laden" Command="{Binding LoadOrderCommand}" />
+            <TextBlock Grid.Row="0" Grid.Column="3" Margin="16,0,0,0" VerticalAlignment="Center" FontWeight="SemiBold"
+                       Text="{Binding OrderText}" TextTrimming="CharacterEllipsis" />
+
+            <Label Grid.Row="1" Grid.Column="0" Content="_Seriennummer:" Margin="0,8,0,0"
+                   Target="{Binding ElementName=SerialBox}" />
+            <TextBox Grid.Row="1" Grid.Column="1" x:Name="SerialBox" Margin="0,8,0,0" IsEnabled="{Binding CanEdit}"
+                     Text="{Binding SerialNumber, UpdateSourceTrigger=PropertyChanged}">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Enter" Command="{Binding SerialEnteredCommand}" />
+                </TextBox.InputBindings>
+            </TextBox>
+            <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,8,0,0">
+                <Button Content="Start (F5)" FontWeight="Bold" Command="{Binding StartCommand}"
+                        Visibility="{Binding IsManualStart, Converter={StaticResource VisibleWhenTrue}}" />
+                <Button Content="_Abbrechen (Esc)" Command="{Binding CancelCommand}" />
+                <CheckBox Content="_Einzelschritt" Margin="16,0,0,0" VerticalAlignment="Center"
+                          IsChecked="{Binding SingleStepMode}" IsEnabled="{Binding CanEdit}" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Single-step and operator prompt -->
+        <StackPanel Grid.Row="3">
+            <Border Background="LightSkyBlue" Padding="8" Margin="0,0,0,8"
+                    Visibility="{Binding IsWaitingForContinue, Converter={StaticResource VisibleWhenTrue}}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="_Weiter (Strg+Leertaste)" Command="{Binding ContinueCommand}" />
+                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding ContinueText}" TextWrapping="Wrap" />
+                </DockPanel>
+            </Border>
+            <Border Background="Khaki" Padding="8" Margin="0,0,0,8"
+                    Visibility="{Binding IsPromptVisible, Converter={StaticResource VisibleWhenTrue}}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Content="_Ja" Command="{Binding YesCommand}" />
+                        <Button Content="_Nein" Command="{Binding NoCommand}" />
+                    </StackPanel>
+                    <TextBlock VerticalAlignment="Center" FontSize="20" FontWeight="Bold" Text="{Binding PromptMessage}" TextWrapping="Wrap" />
+                </DockPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- Steps -->
+        <DataGrid Grid.Row="4" ItemsSource="{Binding Steps}" AutoGenerateColumns="False" IsReadOnly="True"
+                  CanUserSortColumns="False" CanUserReorderColumns="False" HeadersVisibility="Column"
+                  SelectionMode="Single" GridLinesVisibility="Horizontal">
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="ToolTip" Value="{Binding Message}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding State}" Value="{x:Static local:StepRowState.Running}">
+                            <Setter Property="Background" Value="LightYellow" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State}" Value="{x:Static local:StepRowState.Pass}">
+                            <Setter Property="Background" Value="#FFD8F0D8" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State}" Value="{x:Static local:StepRowState.Fail}">
+                            <Setter Property="Background" Value="#FFF4C7C7" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State}" Value="{x:Static local:StepRowState.Error}">
+                            <Setter Property="Background" Value="#FFFFD9A8" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding State}" Value="{x:Static local:StepRowState.Skipped}">
+                            <Setter Property="Foreground" Value="Gray" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Nr." Binding="{Binding Number}" Width="50" />
+                <DataGridTextColumn Header="Schritt" Binding="{Binding Name}" Width="2*" />
+                <DataGridTextColumn Header="Typ" Binding="{Binding TypeText}" Width="*" />
+                <DataGridTextColumn Header="Untergrenze" Binding="{Binding LowText}" Width="*" />
+                <DataGridTextColumn Header="Messwert" Binding="{Binding ValueText}" Width="*" FontWeight="Bold" />
+                <DataGridTextColumn Header="Obergrenze" Binding="{Binding HighText}" Width="*" />
+                <DataGridTextColumn Header="Ergebnis" Binding="{Binding StateText}" Width="*" FontWeight="Bold" />
+                <DataGridTextColumn Header="Meldung" Binding="{Binding Message}" Width="2*" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Result, status, errors -->
+        <Grid Grid.Row="5" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Padding="8" MinHeight="90">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="WhiteSmoke" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ResultState}" Value="{x:Static local:RunDisplayState.Running}">
+                                <Setter Property="Background" Value="SteelBlue" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ResultState}" Value="{x:Static local:RunDisplayState.Pass}">
+                                <Setter Property="Background" Value="ForestGreen" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ResultState}" Value="{x:Static local:RunDisplayState.Fail}">
+                                <Setter Property="Background" Value="Firebrick" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ResultState}" Value="{x:Static local:RunDisplayState.Error}">
+                                <Setter Property="Background" Value="DarkOrange" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ResultState}" Value="{x:Static local:RunDisplayState.Aborted}">
+                                <Setter Property="Background" Value="Gray" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ResultText}" Foreground="White" FontSize="40" FontWeight="Bold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding StatusText}" FontSize="18" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding ErrorText}" Foreground="Firebrick" FontWeight="Bold" TextWrapping="Wrap" Margin="0,4,0,0" />
+                <TextBlock Text="{Binding ExportPath, StringFormat=Export: {0}}" Foreground="Gray" FontSize="12"
+                           TextWrapping="Wrap" Margin="0,4,0,0" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

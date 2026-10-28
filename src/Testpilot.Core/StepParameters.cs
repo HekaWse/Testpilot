@@ -5,7 +5,7 @@ namespace Testpilot.Core;
 
 public sealed record MeasureParameters(int Channel, string Function, double? Range = null, double? Nplc = null);
 public sealed record RelayParameters(int Channel, bool Closed);
-public sealed record SetPowerParameters(double Voltage, double CurrentLimit, bool Enabled);
+public sealed record SetPowerParameters(double Voltage, double CurrentLimit, bool Enabled, int Channel = 1);
 public sealed record ProgramParameters(string FilePath);
 public sealed record ScanParameters;
 public sealed record WaitParameters(double DurationMilliseconds);
@@ -55,6 +55,8 @@ public static class StepParameters
                     throw new ArgumentException("The unit does not match the measurement function.");
                 if (measure.Range.HasValue) Positive(measure.Range.Value, "Range");
                 if (measure.Nplc.HasValue) Positive(measure.Nplc.Value, "Nplc");
+                if (measure.Nplc.HasValue && measure.Function is "VOLT:AC" or "CURR:AC")
+                    throw new ArgumentException("NPLC applies only to DC and resistance measurements.");
                 break;
             case StepType.Relay:
                 Positive(Deserialize<RelayParameters>(step.ParametersJson).Channel, "Channel");
@@ -63,6 +65,7 @@ public static class StepParameters
                 var power = Deserialize<SetPowerParameters>(step.ParametersJson);
                 if (!double.IsFinite(power.Voltage)) throw new ArgumentException("Voltage must be finite.");
                 Positive(power.CurrentLimit, "CurrentLimit");
+                Positive(power.Channel, "Channel");
                 break;
             case StepType.Program:
                 ArgumentException.ThrowIfNullOrWhiteSpace(Deserialize<ProgramParameters>(step.ParametersJson).FilePath);

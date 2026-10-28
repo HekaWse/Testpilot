@@ -1,11 +1,14 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Testpilot.Core;
+using Testpilot.Drivers.Abstractions;
 
 namespace Testpilot.Data;
 
 public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
 {
+    public DbSet<TestSystemType> TestSystemTypes => Set<TestSystemType>();
+    public DbSet<SystemTypeDevice> SystemTypeDevices => Set<SystemTypeDevice>();
     public DbSet<Station> Stations => Set<Station>();
     public DbSet<StationDevice> StationDevices => Set<StationDevice>();
     public DbSet<TestPlan> TestPlans => Set<TestPlan>();
@@ -16,11 +19,30 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<TestSystemType>(entity =>
+        {
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+            entity.HasIndex(x => x.Name).IsUnique();
+            entity.HasMany(x => x.Devices).WithOne().HasForeignKey(x => x.TestSystemTypeId).OnDelete(DeleteBehavior.Cascade);
+        });
+        model.Entity<SystemTypeDevice>(entity =>
+        {
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.DeviceKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Model).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.OptionsJson).IsRequired();
+            entity.HasIndex(x => new { x.TestSystemTypeId, x.DeviceKey }).IsUnique();
+        });
         model.Entity<Station>(entity =>
         {
             entity.Property(x => x.Id).ValueGeneratedNever();
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
             entity.HasIndex(x => x.Name).IsUnique();
+            entity.HasOne<TestSystemType>().WithMany().HasForeignKey(x => x.TestSystemTypeId).OnDelete(DeleteBehavior.Restrict);
             entity.HasMany(x => x.Devices).WithOne().HasForeignKey(x => x.StationId).OnDelete(DeleteBehavior.Cascade);
         });
         model.Entity<StationDevice>(entity =>
@@ -42,6 +64,7 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
             var filter = Database.IsSqlServer() ? "[Status] = 1" : "\"Status\" = 1";
             entity.HasIndex(x => new { x.ArtNr, x.Fz }).IsUnique().HasFilter(filter)
                 .HasDatabaseName("IX_TestPlans_OneReleasedVersion");
+            entity.HasOne<TestSystemType>().WithMany().HasForeignKey(x => x.TestSystemTypeId).OnDelete(DeleteBehavior.Restrict);
             entity.HasMany(x => x.Steps).WithOne().HasForeignKey(x => x.TestPlanId).OnDelete(DeleteBehavior.Cascade);
         });
         model.Entity<TestStep>(entity =>
@@ -78,6 +101,7 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.DeviceKey).HasMaxLength(100);
             entity.Property(x => x.Function).HasMaxLength(20);
+            entity.Property(x => x.TextValue).HasMaxLength(4000);
             entity.HasIndex(x => new { x.RunId, x.Order }).IsUnique();
         });
     }
@@ -109,24 +133,24 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
                 if (entry.State == EntityState.Deleted || (!retirement && plan.Status != stored.Status)
                     || entry.Properties.Any(property => property.Metadata.Name is not nameof(TestPlan.Status) and not nameof(TestPlan.UpdatedAt)
                         && !Equals(property.CurrentValue, property.Metadata.PropertyInfo!.GetValue(stored))))
-                    throw new PlanConflictException("Released and retired plans are immutable; create a new version instead.");
+                    throw new PlanConflictException("Freigegebene und zurückgezogene Pläne sind nicht änderbar. Bitte eine neue Version daraus erstellen.");
             }
             if (entry.State == EntityState.Deleted) continue;
             ArgumentException.ThrowIfNullOrWhiteSpace(plan.ArtNr);
             ArgumentException.ThrowIfNullOrWhiteSpace(plan.Fz);
             if (plan.Version <= 0 || !Enum.IsDefined(plan.Status)) throw new ArgumentException("Invalid plan version or status.");
             if (entry.State == EntityState.Added && plan.Status != PlanStatus.Draft)
-                throw new PlanConflictException("New plans must be drafts.");
+                throw new PlanConflictException("Neue Pläne müssen Entwürfe sein.");
             if (plan.Status == PlanStatus.Draft && (plan.ExecutionPlanJson is not null || plan.ReleasedAt is not null))
-                throw new PlanConflictException("Draft plans must not contain a released execution snapshot.");
+                throw new PlanConflictException("Ein Entwurf darf keinen eingefrorenen Ausführungsplan enthalten.");
             if (plan.Status == PlanStatus.Retired && stored?.Status is not (PlanStatus.Released or PlanStatus.Retired))
-                throw new PlanConflictException("Only released plans can be retired.");
+                throw new PlanConflictException("Nur freigegebene Pläne können zurückgezogen werden.");
             if (plan.Status != PlanStatus.Draft)
             {
                 ValidateJsonObject(plan.ExecutionPlanJson);
-                if (plan.ReleasedAt is null) throw new PlanConflictException("A released plan requires a release timestamp.");
+                if (plan.ReleasedAt is null) throw new PlanConflictException("Ein freigegebener Plan braucht einen Freigabezeitpunkt.");
             }
-            plan.UpdatedAt = DateTimeOffset.UtcNow;
+            plan.UpdatedAt = DatabaseClock.UtcNow();
         }
 
         var steps = ChangeTracker.Entries<TestStep>().Where(x => x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToArray();
@@ -139,15 +163,26 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
             var stored = await TestPlans.AsNoTracking().SingleOrDefaultAsync(x => x.Id == planId, cancellationToken).ConfigureAwait(false);
             if (stored is null) continue;
             if (stored.Status != PlanStatus.Draft)
-                throw new PlanConflictException("Steps of released or retired plans are immutable.");
+                throw new PlanConflictException("Schritte freigegebener oder zurückgezogener Pläne sind nicht änderbar.");
 
             // Updating the parent token makes a concurrent release conflict with a step edit.
             var parent = ChangeTracker.Entries<TestPlan>().SingleOrDefault(x => x.Entity.Id == planId)
                 ?? Entry(stored);
             if (parent.State == EntityState.Detached) parent.State = EntityState.Unchanged;
-            if (parent.State != EntityState.Deleted) parent.Entity.UpdatedAt = DateTimeOffset.UtcNow;
+            if (parent.State != EntityState.Deleted) parent.Entity.UpdatedAt = DatabaseClock.UtcNow();
         }
         foreach (var entry in steps.Where(x => x.State != EntityState.Deleted)) StepParameters.Validate(entry.Entity);
+        foreach (var entry in ChangeTracker.Entries<TestSystemType>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(entry.Entity.Name);
+        }
+        foreach (var entry in ChangeTracker.Entries<SystemTypeDevice>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(entry.Entity.DeviceKey);
+            // Throws for unknown models and invalid slot or channel options; the model name is stored as in the catalog.
+            DeviceCatalog.ParseOptions(entry.Entity.Model, entry.Entity.OptionsJson);
+            entry.Entity.Model = DeviceCatalog.Get(entry.Entity.Model).Name;
+        }
         foreach (var entry in ChangeTracker.Entries<Station>().Where(x => x.State is EntityState.Added or EntityState.Modified))
             ArgumentException.ThrowIfNullOrWhiteSpace(entry.Entity.Name);
         foreach (var entry in ChangeTracker.Entries<StationDevice>().Where(x => x.State is EntityState.Added or EntityState.Modified))
@@ -161,6 +196,10 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
             LimitChecker.Validate(entry.Entity.LimitLow, entry.Entity.LimitHigh);
             if (entry.Entity.Value.HasValue && !double.IsFinite(entry.Entity.Value.Value))
                 throw new ArgumentException("Non-finite measurements must be stored as null with an error result.");
+            if (entry.Entity.Value.HasValue && entry.Entity.TextValue is not null)
+                throw new ArgumentException("A step result cannot contain both a numeric and text value.");
+            if (entry.Entity.TextValue?.Length > 4000)
+                throw new ArgumentOutOfRangeException(nameof(entry.Entity.TextValue), "Text step results are limited to 4,000 characters.");
         }
     }
 

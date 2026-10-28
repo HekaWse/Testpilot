@@ -1,0 +1,30 @@
+# Profile for the PS05 test adapter control (hold-down and result lamps), wired to the
+# digital channels of an Agilent 34970A. Driver: Ps05Fixture.
+# All values come from the legacy program (Externes\Geräte\Ps05InternWrapper.cs, Ag34970AWrapperVISA.cs).
+# The adapter is not used by plan steps; the channels only document the wiring.
+id: ps05-fixture
+model: "PS05 test adapter control on Agilent 34970A"
+channelCount: 2
+channelNumbering: "34970A slot*100 + channel"
+capabilities:
+  - TestFixture
+state:
+  settings: []
+  invalidatedByCommand: {}
+  unknownCommandInvalidatesAll: true
+channels:
+  - number: 301
+    name: "Adapter closed input (byte)"
+    type: GeneralPurpose
+    supportedFunctions: []
+    valueRanges: {}
+  - number: 302
+    name: "Hold-down and lamp output (byte)"
+    type: GeneralPurpose
+    supportedFunctions: []
+    valueRanges: {}
+specialCases:
+  - "Adapter state: MEAS:VOLT:DC? (@301); 254 or 255 means closed (legacy Ps05InternWrapper.AdapterState)."
+  - "Output byte on 302 via SOUR:DIG:DATA:BYTE: 250 = self-hold (adapter stays closed), 253 = open + pass lamp, 254 = open + fail lamp, 255 = initial state after Initialize."
+todos:
+  - "TODO: an der Hardware prüfen - 255 (Grundzustand aus Initialize) wird als 'öffnen ohne Lampe' verwendet."

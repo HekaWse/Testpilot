@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- Windows target because the tests reference the WPF operator application. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -21,6 +22,13 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Testpilot.Core\Testpilot.Core.csproj" />
     <ProjectReference Include="..\..\src\Testpilot.Data\Testpilot.Data.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Drivers.Abstractions\Testpilot.Drivers.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Drivers\Testpilot.Drivers.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Planning\Testpilot.Planning.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Sap\Testpilot.Sap.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Sequencer\Testpilot.Sequencer.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Editor\Testpilot.Editor.csproj" />
+    <ProjectReference Include="..\..\src\Testpilot.Operator\Testpilot.Operator.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,38 @@
+# Source: R&S HMP data sheet 5215.4981.32 v02.01 (model overview / electrical specifications)
+# and R&S HMP Series User Manual 1178.6833.02 edition 05 (SCPI: INSTrument OUTn).
+id: rs-hmp2030
+model: "Rohde & Schwarz HMP2030"
+channelCount: 3
+channelNumbering: "output number 1..3 as printed on the front panel (SCPI: INST OUTn)"
+capabilities:
+  - PowerSupply
+state:
+  settings: []
+  invalidatedByCommand: {}
+  unknownCommandInvalidatesAll: true
+channels:
+  - number: 1
+    name: "OUT1"
+    type: PowerOutput
+    supportedFunctions: [VOLT, CURR]
+    valueRanges:
+      VOLT: [0, 32]
+      CURR: [0, 5]
+  - number: 2
+    name: "OUT2"
+    type: PowerOutput
+    supportedFunctions: [VOLT, CURR]
+    valueRanges:
+      VOLT: [0, 32]
+      CURR: [0, 5]
+  - number: 3
+    name: "OUT3"
+    type: PowerOutput
+    supportedFunctions: [VOLT, CURR]
+    valueRanges:
+      VOLT: [0, 32]
+      CURR: [0, 5]
+specialCases:
+  - "Maximum output power per channel: OUT1 80 W, OUT2 80 W, OUT3 80 W; total max. 188 W. Not checked by the driver; keep voltage x current within these limits in the plan."
+  - "Series/parallel operation needs external wiring and is not modeled."
+todos: []

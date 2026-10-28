@@ -1,7 +1,33 @@
 ﻿@page "/"
 
-<PageTitle>Testpilot</PageTitle>
+<PageTitle>Testpilot — Prüfplaneditor</PageTitle>
 
-<h1>Testpilot</h1>
-<p>Phase 1: Gerüst und Kernfunktionen sind eingerichtet.</p>
-<p>Die Prüfplanbearbeitung folgt in Phase 4. Diese Anwendung hat keinen Gerätezugriff.</p>
+<MudContainer MaxWidth="MaxWidth.Large">
+    <MudText Typo="Typo.h4" GutterBottom="true">Prüfplaneditor</MudText>
+    <MudText Typo="Typo.body1" GutterBottom="true">
+        Prüfsystemtypen, Prüfsysteme und Prüfpläne verwalten. Diese Anwendung greift nicht auf Geräte zu.
+    </MudText>
+    <MudGrid Spacing="3" Class="mt-3">
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="1">
+                <MudText Typo="Typo.h5">Prüfsystemtypen</MudText>
+                <MudText>Einmal je Typ festlegen, welche Geräte (Modelle, Module, Kanäle) zu PS04, PS05 usw. gehören.</MudText>
+                <MudButton Href="/system-types" Color="Color.Primary" Variant="Variant.Filled" Class="mt-4">Prüfsystemtypen öffnen</MudButton>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="1">
+                <MudText Typo="Typo.h5">Prüfpläne</MudText>
+                <MudText>Entwürfe bearbeiten, Ausführungsplan prüfen und freigeben.</MudText>
+                <MudButton Href="/plans" Color="Color.Primary" Variant="Variant.Filled" Class="mt-4">Prüfpläne öffnen</MudButton>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-5" Elevation="1">
+                <MudText Typo="Typo.h5">Prüfsysteme</MudText>
+                <MudText>Die konkreten Systeme (PS04-1 … PS04-9): eingebaute Geräte, Treiber und VISA-Adressen.</MudText>
+                <MudButton Href="/stations" Color="Color.Primary" Variant="Variant.Filled" Class="mt-4">Prüfsysteme öffnen</MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>

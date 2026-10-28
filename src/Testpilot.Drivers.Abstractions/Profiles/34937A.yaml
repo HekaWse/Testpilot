@@ -1,0 +1,17 @@
+id: agilent-34980a-34937a
+model: "34980A with 34937A module"
+channelCount: null
+channelNumbering: "module channel 1..n; in the 34980A: slot * 100 + channel (for example 1003)"
+capabilities: []
+channels: []
+state:
+  settings: []
+  invalidatedByCommand: {}
+  unknownCommandInvalidatesAll: true
+specialCases:
+  - "TODO: aus Datenblatt prüfen — Kanaltypen und Stromkanäle"
+  - "TODO: aus Datenblatt prüfen — 4-Draht-Kanalpaare und Kanalbelegung"
+todos:
+  - "TODO: aus Datenblatt prüfen — Anzahl und Nummerierung der Kanäle"
+  - "TODO: aus Datenblatt prüfen — Kanaltypen, Funktionen und Sonderfälle"
+  - "TODO: aus Datenblatt prüfen — Wertebereiche und Kanalkonfigurationen"

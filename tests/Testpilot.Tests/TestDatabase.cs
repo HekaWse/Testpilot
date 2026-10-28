@@ -3,6 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Testpilot.Core;
 using Testpilot.Data;
+using Testpilot.Drivers;
+using Testpilot.Drivers.Abstractions;
+using Testpilot.Planning;
 
 namespace Testpilot.Tests;
 
@@ -30,6 +33,17 @@ internal sealed class TestDatabase : IAsyncDisposable
             Unit = MeasurementUnit.Volt, LimitLow = 3.2, LimitHigh = 3.4, BreakpointFlag = true,
             ParametersJson = StepParameters.Serialize(new MeasureParameters(1003, "VOLT:DC", 10, 1)) }]
     };
+
+    /// <summary>Optimizes a <see cref="Draft"/> plan against a simulated meter that provides channel 1003.</summary>
+    public static ExecutionPlan Optimize(TestPlan plan)
+    {
+        var configuration = DriverConfiguration.Parse("dmm1", "SimulatedSwitchMultimeter", "{\"channels\":[1003]}");
+        var profile = new DriverRegistry().AddSimulatedDrivers().GetProfile(configuration);
+        return new ExecutionPlanOptimizer().Optimize(plan,
+            new Dictionary<string, DeviceDefinition>(StringComparer.Ordinal) { ["dmm1"] = new(configuration, profile) });
+    }
+
+    public Task ReleaseAsync(TestPlan plan) => Plans.ReleaseAsync(plan.Id, Optimize(plan));
 
     public async ValueTask DisposeAsync()
     {

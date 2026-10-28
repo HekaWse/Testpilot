@@ -5,6 +5,7 @@
     <Project Path="src/Testpilot.Drivers.Abstractions/Testpilot.Drivers.Abstractions.csproj" />
     <Project Path="src/Testpilot.Drivers/Testpilot.Drivers.csproj" />
     <Project Path="src/Testpilot.Editor/Testpilot.Editor.csproj" />
+    <Project Path="src/Testpilot.Operator/Testpilot.Operator.csproj" />
     <Project Path="src/Testpilot.Planning/Testpilot.Planning.csproj" />
     <Project Path="src/Testpilot.Sap/Testpilot.Sap.csproj" />
     <Project Path="src/Testpilot.Sequencer/Testpilot.Sequencer.csproj" />

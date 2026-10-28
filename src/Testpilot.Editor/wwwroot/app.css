@@ -28,6 +28,16 @@ h1:focus {
     border-color: #929292;
 }
 
+.plan-preview {
+    max-height: 32rem;
+    overflow: auto;
+    padding: 1rem;
+    background: #f4f6f8;
+    border-radius: 0.25rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
 .form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
     color: var(--bs-secondary-color);
     text-align: end;

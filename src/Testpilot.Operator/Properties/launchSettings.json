@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "Testpilot.Operator": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "Simulation__Enabled": "true"
+      }
+    }
+  }
+}

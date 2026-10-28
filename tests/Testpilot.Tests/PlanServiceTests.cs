@@ -6,8 +6,6 @@ namespace Testpilot.Tests;
 
 public sealed class PlanServiceTests
 {
-    private const string Snapshot = "{\"init\":[],\"steps\":[],\"cleanup\":[]}";
-
     [Fact]
     public async Task LookupSelectsOnlyReleasedExactArticleAndFz()
     {
@@ -15,10 +13,10 @@ public sealed class PlanServiceTests
         var released = TestDatabase.Draft();
         db.Context.AddRange(released, TestDatabase.Draft(2), TestDatabase.Draft(1, "4711", "B"), TestDatabase.Draft(1, "9999"));
         await db.Context.SaveChangesAsync();
-        await db.Plans.ReleaseAsync(released.Id, Snapshot);
+        await db.ReleaseAsync(released);
         var found = await db.Plans.GetReleasedAsync("4711", "A");
         Assert.Equal(released.Id, found.Id);
-        Assert.Equal(Snapshot, found.ExecutionPlanJson);
+        Assert.Equal(Testpilot.Planning.ExecutionPlanSerializer.Serialize(TestDatabase.Optimize(released)), found.ExecutionPlanJson);
         Assert.NotNull(found.ReleasedAt);
         Assert.Single(found.Steps);
         Assert.True(found.Steps[0].BreakpointFlag);
@@ -34,8 +32,8 @@ public sealed class PlanServiceTests
         var second = TestDatabase.Draft(2);
         db.Context.AddRange(first, second);
         await db.Context.SaveChangesAsync();
-        await db.Plans.ReleaseAsync(first.Id, Snapshot);
-        await Assert.ThrowsAsync<PlanConflictException>(() => db.Plans.ReleaseAsync(second.Id, Snapshot));
+        await db.ReleaseAsync(first);
+        await Assert.ThrowsAsync<PlanConflictException>(() => db.ReleaseAsync(second));
         Assert.Equal(PlanStatus.Draft, second.Status);
     }
 
@@ -51,7 +49,7 @@ public sealed class PlanServiceTests
         {
             plan.Status = PlanStatus.Released;
             plan.ReleasedAt = DateTimeOffset.UtcNow;
-            plan.ExecutionPlanJson = Snapshot;
+            plan.ExecutionPlanJson = "{}";
         }
         await Assert.ThrowsAsync<DbUpdateException>(() => db.Context.SaveChangesAsync());
         await using var verify = db.NewContext();
@@ -65,7 +63,7 @@ public sealed class PlanServiceTests
         var source = TestDatabase.Draft();
         db.Context.Add(source);
         await db.Context.SaveChangesAsync();
-        await db.Plans.ReleaseAsync(source.Id, Snapshot);
+        await db.ReleaseAsync(source);
         var copy = await db.Plans.CreateNewVersionAsync(source.Id);
         Assert.Equal(2, copy.Version);
         Assert.Equal(PlanStatus.Draft, copy.Status);
@@ -78,9 +76,9 @@ public sealed class PlanServiceTests
         await db.Context.SaveChangesAsync();
         Assert.Equal(3.2, source.Steps[0].LimitLow);
         await db.Plans.RetireAsync(source.Id);
-        await db.Plans.ReleaseAsync(copy.Id, Snapshot);
+        await db.ReleaseAsync(copy);
         Assert.Equal(copy.Id, (await db.Plans.GetReleasedAsync("4711", "A")).Id);
-        await Assert.ThrowsAsync<PlanConflictException>(() => db.Plans.ReleaseAsync(source.Id, Snapshot));
+        await Assert.ThrowsAsync<PlanConflictException>(() => db.ReleaseAsync(source));
     }
 
     [Theory]
@@ -97,7 +95,7 @@ public sealed class PlanServiceTests
         var plan = TestDatabase.Draft();
         db.Context.Add(plan);
         await db.Context.SaveChangesAsync();
-        await db.Plans.ReleaseAsync(plan.Id, Snapshot);
+        await db.ReleaseAsync(plan);
         switch (change)
         {
             case "name": plan.ArtNr = "changed"; break;
@@ -119,7 +117,7 @@ public sealed class PlanServiceTests
         var plan = TestDatabase.Draft();
         db.Context.Add(plan);
         await db.Context.SaveChangesAsync();
-        await db.Plans.ReleaseAsync(plan.Id, Snapshot);
+        await db.ReleaseAsync(plan);
         db.Context.ChangeTracker.Clear();
         plan.ArtNr = "changed";
         db.Context.Update(plan);
@@ -127,15 +125,16 @@ public sealed class PlanServiceTests
     }
 
     [Fact]
-    public async Task ReleaseRejectsInvalidSnapshotAndEmptyPlans()
+    public async Task ReleaseRejectsEmptyAndUnknownPlans()
     {
         await using var db = await TestDatabase.CreateAsync();
         var empty = new TestPlan { ArtNr = "empty", Fz = "A" };
         db.Context.Add(empty);
         await db.Context.SaveChangesAsync();
-        await Assert.ThrowsAsync<System.Text.Json.JsonException>(() => db.Plans.ReleaseAsync(empty.Id, "[]"));
-        await Assert.ThrowsAsync<PlanConflictException>(() => db.Plans.ReleaseAsync(empty.Id, Snapshot));
-        await Assert.ThrowsAsync<PlanNotFoundException>(() => db.Plans.ReleaseAsync(Guid.NewGuid(), Snapshot));
+        var emptyExecution = new Testpilot.Planning.ExecutionPlan(empty.Id, empty.Version, empty.ArtNr, empty.Fz, [],
+            new([]), [], new([], []));
+        await Assert.ThrowsAsync<PlanConflictException>(() => db.Plans.ReleaseAsync(empty.Id, emptyExecution));
+        await Assert.ThrowsAsync<PlanNotFoundException>(() => db.Plans.ReleaseAsync(Guid.NewGuid(), emptyExecution));
     }
 
     [Fact]

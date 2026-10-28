@@ -10,6 +10,8 @@ public sealed class UnitsAndLimitsTests
     [InlineData("3.3mV", 0.0033)]
     [InlineData("2 µV", 0.000002)]
     [InlineData("2 nV", 0.000000002)]
+    [InlineData("2 uV", 0.000002)]
+    [InlineData("2 \u03BCV", 0.000002)]
     [InlineData("4 kV", 4000)]
     [InlineData("4 MV", 4000000)]
     [InlineData("-1.2e2 V", -120)]
@@ -23,7 +25,6 @@ public sealed class UnitsAndLimitsTests
     [InlineData("1e309")]
     [InlineData("1 A")]
     [InlineData("1 K")]
-    [InlineData("1 u")]
     [InlineData("1,234")]
     [InlineData("3.3 mm")]
     public void ParseRejectsInvalidOrAmbiguousValues(string input) =>
@@ -38,6 +39,19 @@ public sealed class UnitsAndLimitsTests
         Assert.Equal(symbol, Units.Symbol(unit));
         Assert.Equal(2, Units.Parse($"2 {symbol}", unit));
     }
+
+    [Theory]
+    [InlineData("4.7 k\u2126", 4700)]
+    [InlineData("4.7 kOhm", 4700)]
+    [InlineData("10 mOhm", 0.01)]
+    public void OhmAcceptsAlternativeSymbols(string input, double expected) =>
+        Assert.Equal(expected, Units.Parse(input, MeasurementUnit.Ohm), 12);
+
+    [Theory]
+    [InlineData(999.9999, "1 kV")]
+    [InlineData(0.00099999999, "1 mV")]
+    public void FormatAutoChoosesThePrefixAfterRounding(double value, string expected) =>
+        Assert.Equal(expected, Units.FormatAuto(value, MeasurementUnit.Volt));
 
     [Theory]
     [InlineData("n")]

@@ -21,13 +21,18 @@ public static class Units
     public static double Parse(string text, MeasurementUnit unit, IFormatProvider? culture = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        var symbol = Symbol(unit);
         var remaining = text.Trim();
-        if (remaining.EndsWith(symbol, StringComparison.Ordinal))
-            remaining = remaining[..^symbol.Length].TrimEnd();
+        foreach (var symbol in AcceptedSymbols(unit))
+        {
+            if (remaining.EndsWith(symbol, StringComparison.Ordinal))
+            {
+                remaining = remaining[..^symbol.Length].TrimEnd();
+                break;
+            }
+        }
 
         var factor = 1d;
-        if (remaining.Length > 0 && Factors.TryGetValue(remaining[^1..], out var prefixFactor))
+        if (remaining.Length > 0 && Factors.TryGetValue(NormalizePrefix(remaining[^1..]), out var prefixFactor))
         {
             factor = prefixFactor;
             remaining = remaining[..^1].TrimEnd();
@@ -38,6 +43,41 @@ public static class Units
         if (!double.IsFinite(value))
             throw new FormatException("The value must be finite and representable in SI units.");
         return value;
+    }
+
+    // Keyboards and other programs produce different characters for micro and ohm; "u" and "Ohm" are typable on any keyboard.
+    private static string NormalizePrefix(string prefix) => prefix switch
+    {
+        "u" or "\u03BC" => "\u00B5",
+        _ => prefix
+    };
+
+    private static string[] AcceptedSymbols(MeasurementUnit unit) => unit switch
+    {
+        MeasurementUnit.Ohm => [Symbol(unit), "\u2126", "Ohm", "ohm"],
+        _ => [Symbol(unit)]
+    };
+
+    /// <summary>
+    /// Formats a value for display with the SI prefix that fits its magnitude (n, µ, m, none, k, M),
+    /// rounded to six significant digits, e.g. 0.0033 V -> "3,3 mV" with a German culture.
+    /// </summary>
+    public static string FormatAuto(double value, MeasurementUnit unit, IFormatProvider? culture = null)
+    {
+        if (!double.IsFinite(value))
+            throw new ArgumentOutOfRangeException(nameof(value), "The value must be finite.");
+        // Round first, so 999.9999 V is shown as "1 kV" and not as "1000 V".
+        var rounded = double.Parse(value.ToString("G6", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        var magnitude = Math.Abs(rounded);
+        var prefix = magnitude == 0 ? ""
+            : magnitude >= 1e6 ? "M"
+            : magnitude >= 1e3 ? "k"
+            : magnitude >= 1 ? ""
+            : magnitude >= 1e-3 ? "m"
+            : magnitude >= 1e-6 ? "µ"
+            : "n";
+        var scaled = rounded / Factors[prefix];
+        return $"{scaled.ToString("G6", culture ?? CultureInfo.InvariantCulture)} {prefix}{Symbol(unit)}";
     }
 
     public static string Format(double value, MeasurementUnit unit, string prefix = "", IFormatProvider? culture = null)

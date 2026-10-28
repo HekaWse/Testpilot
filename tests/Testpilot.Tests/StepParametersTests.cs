@@ -60,4 +60,17 @@ public sealed class StepParametersTests
         var step = new TestStep { Name = "Measure", DeviceKey = "dmm1", Unit = MeasurementUnit.Volt, ParametersJson = json };
         Assert.ThrowsAny<ArgumentException>(() => StepParameters.Validate(step));
     }
+
+    [Fact]
+    public void SetPowerChannelDefaultsToOneAndMustBePositive()
+    {
+        var legacy = StepParameters.Deserialize<SetPowerParameters>("{\"voltage\":3.3,\"currentLimit\":0.5,\"enabled\":true}");
+        Assert.Equal(1, legacy.Channel);
+        Assert.Equal(3, StepParameters.Deserialize<SetPowerParameters>(
+            "{\"channel\":3,\"voltage\":3.3,\"currentLimit\":0.5,\"enabled\":true}").Channel);
+
+        var step = new TestStep { Name = "Power", StepType = StepType.SetPower, DeviceKey = "psu1",
+            ParametersJson = "{\"channel\":0,\"voltage\":3.3,\"currentLimit\":0.5,\"enabled\":true}" };
+        Assert.ThrowsAny<ArgumentException>(() => StepParameters.Validate(step));
+    }
 }

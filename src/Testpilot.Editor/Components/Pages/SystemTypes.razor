@@ -1,0 +1,572 @@
+@page "/system-types"
+@inject IDbContextFactory<TestpilotDbContext> DbFactory
+@inject TestSystemTypeYamlService YamlService
+@inject ISnackbar Snackbar
+
+<PageTitle>Prüfsystemtypen</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Large">
+    <MudText Typo="Typo.h4" GutterBottom="true">Prüfsystemtypen</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4">
+        Ein Prüfsystemtyp (z. B. PS04 oder PS05) legt fest, welche Geräte in Systemen dieses Typs eingebaut sein können.
+        Prüfpläne werden für einen Typ geschrieben und können nur dessen Geräte verwenden. Die einzelnen Prüfsysteme
+        (z. B. PS04-1 bis PS04-9) legst du unter „Prüfsysteme“ an; dort stehen Treiber und VISA-Adressen.
+    </MudText>
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorMessage</MudAlert>
+    }
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.h6">Prüfsystemtyp anlegen</MudText>
+                <MudTextField Label="Name (z. B. PS04)" @bind-Value="newSystemName" Class="mt-2" />
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateSystemAsync" Disabled="busy" Class="mt-3">Anlegen</MudButton>
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.h6">Vorhandene Prüfsystemtypen</MudText>
+                @if (systems.Count == 0)
+                {
+                    <MudText Class="mt-2">Noch keine Prüfsystemtypen angelegt.</MudText>
+                }
+                else
+                {
+                    <MudList T="Guid">
+                        @foreach (var system in systems)
+                        {
+                            <MudListItem T="Guid" Value="@system.Id" Disabled="busy" OnClick="() => SelectSystemAsync(system.Id)">
+                                @system.Name
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4">
+                @if (selectedSystem is null)
+                {
+                    <MudText>Wähle einen Prüfsystemtyp aus oder lege einen neuen an.</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.h5">@selectedSystem.Name</MudText>
+                    <MudGrid Spacing="2" Class="mt-1">
+                        <MudItem xs="12" sm="4"><MudTextField Label="Name" @bind-Value="editName" /></MudItem>
+                        <MudItem xs="12" sm="8"><MudTextField Label="Beschreibung" @bind-Value="editDescription" /></MudItem>
+                    </MudGrid>
+                    <MudButton Color="Color.Primary" Variant="Variant.Outlined" OnClick="SaveSystemAsync" Disabled="@(busy || !HasSystemChanges)" Class="mt-2">Prüfsystemtyp speichern</MudButton>
+                    @if (HasSystemChanges)
+                    {
+                        <MudButton Variant="Variant.Text" OnClick="ResetSystemEdits" Disabled="busy" Class="mt-2 ml-2">Änderungen verwerfen</MudButton>
+                    }
+                    <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="DeleteSystemAsync" Disabled="busy" Class="mt-2 ml-2">Prüfsystemtyp löschen</MudButton>
+                    @if (stationNames.Count != 0)
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-2">Prüfsysteme dieses Typs: @string.Join(", ", stationNames)</MudText>
+                    }
+
+                    <MudDivider Class="my-4" />
+                    <MudText Typo="Typo.h6">@(editingDeviceId.HasValue ? "Gerät bearbeiten" : "Gerät hinzufügen")</MudText>
+                    <MudGrid Spacing="2" Class="mt-1">
+                        <MudItem xs="12" sm="4"><MudTextField Label="Gerätekennung (z. B. dmm1)" @bind-Value="deviceKey" /></MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="string" Label="Gerätemodell" Value="modelName" ValueChanged="ModelChanged">
+                                @foreach (var model in DeviceCatalog.Models)
+                                {
+                                    <MudSelectItem Value="@model.Name">@model.Name — @model.Description</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4"><MudTextField Label="Bezeichnung (optional)" @bind-Value="deviceDescription" /></MudItem>
+                        @if (SelectedModel?.ModuleSlotCount > 0)
+                        {
+                            @for (var slot = 1; slot <= SelectedModel.ModuleSlotCount; slot++)
+                            {
+                                var slotNumber = slot;
+                                <MudItem xs="6" sm="3">
+                                    <MudSelect T="string" Label="@($"Slot {slotNumber}")" Value="SlotModule(slotNumber)"
+                                               ValueChanged="value => slotModules[slotNumber] = value">
+                                        <MudSelectItem Value="@("")">leer</MudSelectItem>
+                                        @foreach (var module in SelectedModel.Modules ?? [])
+                                        {
+                                            <MudSelectItem Value="@module">@module</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                </MudItem>
+                            }
+                        }
+                        @if (SelectedModel?.ChannelsFromOptions == true)
+                        {
+                            <MudItem xs="12"><MudTextField Label="Kanäle (durch Komma getrennt, z. B. 1003, 1004)" @bind-Value="channelsText" /></MudItem>
+                        }
+                    </MudGrid>
+                    @if (editingDeviceId.HasValue)
+                    {
+                        <MudText Typo="Typo.caption" Class="d-block mt-1">
+                            Wird das Gerät von Prüfplänen oder Prüfsystemen verwendet, kann die Gerätekennung nicht geändert werden.
+                            Modell und Ausstattung sind gesperrt, solange freigegebene Prüfpläne das Gerät verwenden.
+                        </MudText>
+                    }
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDeviceAsync" Disabled="busy" Class="mt-2">@(editingDeviceId.HasValue ? "Gerät speichern" : "Gerät hinzufügen")</MudButton>
+                    @if (editingDeviceId.HasValue)
+                    {
+                        <MudButton Variant="Variant.Text" OnClick="CancelDeviceEdit" Class="mt-2 ml-2">Abbrechen</MudButton>
+                    }
+
+                    <MudDivider Class="my-4" />
+                    <MudText Typo="Typo.h6">Geräte des Prüfsystemtyps</MudText>
+                    <MudText Typo="Typo.body2">
+                        Alle Geräte, die in einem System dieses Typs eingebaut sein können. Ist ein Gerät nur in einzelnen Systemen
+                        vorhanden, wird es bei den anderen Prüfsystemen einfach nicht zugeordnet.
+                    </MudText>
+                    @if (selectedSystem.Devices.Count == 0)
+                    {
+                        <MudText>Diesem Prüfsystemtyp sind noch keine Geräte zugeordnet.</MudText>
+                    }
+                    else
+                    {
+                        <MudTable Items="selectedSystem.Devices.OrderBy(device => device.DeviceKey, StringComparer.Ordinal)" Dense="true" Hover="true">
+                            <HeaderContent>
+                                <MudTh>Gerätekennung</MudTh><MudTh>Modell</MudTh><MudTh>Ausstattung</MudTh><MudTh>Kanäle</MudTh><MudTh></MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Gerätekennung">@context.DeviceKey</MudTd>
+                                <MudTd DataLabel="Modell">@context.Model<br /><MudText Typo="Typo.caption">@context.Description</MudText></MudTd>
+                                <MudTd DataLabel="Ausstattung">@Describe(context)</MudTd>
+                                <MudTd DataLabel="Kanäle">@ChannelSummary(context)</MudTd>
+                                <MudTd>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" title="Gerät bearbeiten" Disabled="busy" OnClick="() => EditDevice(context.Id)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" title="Gerät entfernen" Disabled="busy" OnClick="() => RemoveDeviceAsync(context.Id)" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                        @foreach (var todo in OpenTodos())
+                        {
+                            <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">@todo</MudAlert>
+                        }
+                    }
+                }
+                @* YAML import works without a selected type, so this section is outside the selection block. *@
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.h6">YAML-Import und -Export</MudText>
+                <MudText Typo="Typo.body2">Exportieren erzeugt einen YAML-Snapshot. Importieren legt daraus einen neuen Prüfsystemtyp an.</MudText>
+                <MudTextField Label="Prüfsystemtyp-YAML" @bind-Value="yamlText" Lines="10" Sizing="InputSizing.Auto" Class="mt-2" />
+                <MudButton Variant="Variant.Outlined" OnClick="ExportYaml" Disabled="@(busy || selectedSystem is null)" Class="mt-2">Auswahl exportieren</MudButton>
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ImportYamlAsync" Disabled="busy" Class="mt-2 ml-2">Als neuen Prüfsystemtyp importieren</MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private List<TestSystemType> systems = [];
+    // Read-only snapshot of the selected type; every change is written through a fresh database context.
+    private TestSystemType? selectedSystem;
+    private string editName = "";
+    private string editDescription = "";
+    private string newSystemName = "";
+    private List<string> stationNames = [];
+    private string deviceKey = "";
+    private string modelName = DeviceCatalog.Ag34980A;
+    private string deviceDescription = "";
+    private Dictionary<int, string?> slotModules = [];
+    private string channelsText = "";
+    private Guid? editingDeviceId;
+    private string yamlText = "";
+    private string? errorMessage;
+    private bool busy;
+
+    private DeviceModel? SelectedModel => DeviceCatalog.Find(modelName);
+    private bool HasSystemChanges => selectedSystem is not null
+        && (editName != selectedSystem.Name || editDescription != selectedSystem.Description);
+
+    protected override Task OnInitializedAsync() => RunAsync(() => ReloadAsync(null));
+
+    /// <summary>
+    /// Runs one user action at a time: clicks during a running action are ignored. Expected failures are shown
+    /// as German message and the page is reloaded from the database (unsaved inputs are kept).
+    /// </summary>
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (busy) return;
+        busy = true;
+        errorMessage = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            ShowError(EditorErrors.ToGerman(exception));
+            await TryReloadAsync();
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private async Task TryReloadAsync()
+    {
+        try
+        {
+            await ReloadAsync(selectedSystem?.Id);
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            ShowError(EditorErrors.ToGerman(exception));
+        }
+    }
+
+    /// <summary>Loads all types and the stations of the selected type; the edit fields are not touched.</summary>
+    private async Task ReloadAsync(Guid? systemId)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        systems = await db.TestSystemTypes.AsNoTracking().Include(system => system.Devices)
+            .OrderBy(system => system.Name).ToListAsync();
+        selectedSystem = systemId is Guid id ? systems.SingleOrDefault(system => system.Id == id) : null;
+        stationNames = selectedSystem is null
+            ? []
+            : await db.Stations.AsNoTracking().Where(station => station.TestSystemTypeId == selectedSystem.Id)
+                .OrderBy(station => station.Name).Select(station => station.Name).ToListAsync();
+    }
+
+    private async Task ShowSystemAsync(Guid id)
+    {
+        await ReloadAsync(id);
+        ResetSystemEdits();
+        CancelDeviceEdit();
+        yamlText = "";
+    }
+
+    private void ResetSystemEdits()
+    {
+        editName = selectedSystem?.Name ?? "";
+        editDescription = selectedSystem?.Description ?? "";
+    }
+
+    /// <summary>Returns a German error text if the name is empty or used by another type, otherwise null.</summary>
+    private string? CheckSystemName(string name, Guid? ownId)
+    {
+        if (name.Length == 0) return "Bitte einen Namen für den Prüfsystemtyp eingeben.";
+        return systems.Any(system => system.Id != ownId && string.Equals(system.Name, name, StringComparison.OrdinalIgnoreCase))
+            ? $"Ein Prüfsystemtyp mit dem Namen '{name}' existiert bereits."
+            : null;
+    }
+
+    private Task CreateSystemAsync() => RunAsync(async () =>
+    {
+        var name = newSystemName.Trim();
+        var nameError = CheckSystemName(name, null);
+        if (nameError is not null)
+        {
+            ShowError(nameError);
+            return;
+        }
+        var system = new TestSystemType { Name = name };
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            db.TestSystemTypes.Add(system);
+            await db.SaveChangesAsync();
+        }
+        newSystemName = "";
+        await ShowSystemAsync(system.Id);
+    });
+
+    private Task SelectSystemAsync(Guid id) => RunAsync(() => ShowSystemAsync(id));
+
+    private Task SaveSystemAsync() => RunAsync(async () =>
+    {
+        if (selectedSystem is null) return;
+        var name = editName.Trim();
+        var nameError = CheckSystemName(name, selectedSystem.Id);
+        if (nameError is not null)
+        {
+            ShowError(nameError);
+            return;
+        }
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            var system = await db.TestSystemTypes.SingleOrDefaultAsync(item => item.Id == selectedSystem.Id)
+                ?? throw new InvalidOperationException("Der Prüfsystemtyp existiert nicht mehr. Bitte neu laden.");
+            system.Name = name;
+            system.Description = editDescription.Trim();
+            await db.SaveChangesAsync();
+        }
+        await ReloadAsync(selectedSystem.Id);
+        ResetSystemEdits();
+        Snackbar.Add("Prüfsystemtyp gespeichert.", Severity.Success);
+    });
+
+    private Task DeleteSystemAsync() => RunAsync(async () =>
+    {
+        if (selectedSystem is null) return;
+        var id = selectedSystem.Id;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            var planCount = await db.TestPlans.CountAsync(plan => plan.TestSystemTypeId == id);
+            var stationCount = await db.Stations.CountAsync(station => station.TestSystemTypeId == id);
+            if (planCount != 0 || stationCount != 0)
+            {
+                ShowError($"Der Prüfsystemtyp wird noch von {planCount} Prüfplan/Prüfplänen und {stationCount} Prüfsystem(en) verwendet und kann nicht gelöscht werden.");
+                return;
+            }
+            var system = await db.TestSystemTypes.Include(item => item.Devices).SingleOrDefaultAsync(item => item.Id == id);
+            if (system is not null)
+            {
+                db.TestSystemTypes.Remove(system);
+                await db.SaveChangesAsync();
+            }
+        }
+        CancelDeviceEdit();
+        await ReloadAsync(null);
+        ResetSystemEdits();
+        Snackbar.Add("Prüfsystemtyp gelöscht.", Severity.Success);
+    });
+
+    private void ModelChanged(string value)
+    {
+        modelName = value;
+        slotModules = [];
+        channelsText = "";
+    }
+
+    private string SlotModule(int slot) => slotModules.GetValueOrDefault(slot) ?? "";
+
+    private void EditDevice(Guid id)
+    {
+        if (busy) return;
+        var device = selectedSystem?.Devices.SingleOrDefault(item => item.Id == id);
+        if (device is null) return;
+        errorMessage = null;
+        editingDeviceId = device.Id;
+        deviceKey = device.DeviceKey;
+        modelName = device.Model;
+        deviceDescription = device.Description;
+        try
+        {
+            var options = DeviceCatalog.ParseOptions(device.Model, device.OptionsJson);
+            slotModules = options.Slots.ToDictionary(slot => slot.Key, slot => (string?)slot.Value);
+            channelsText = string.Join(", ", options.Channels);
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            slotModules = [];
+            channelsText = "";
+            ShowError("Die Ausstattung des Geräts konnte nicht gelesen werden: " + EditorErrors.ToGerman(exception));
+        }
+    }
+
+    private void CancelDeviceEdit()
+    {
+        editingDeviceId = null;
+        deviceKey = "";
+        modelName = DeviceCatalog.Ag34980A;
+        deviceDescription = "";
+        slotModules = [];
+        channelsText = "";
+    }
+
+    private string BuildOptionsJson()
+    {
+        var model = DeviceCatalog.Get(modelName);
+        var slots = slotModules.Where(slot => !string.IsNullOrWhiteSpace(slot.Value))
+            .ToDictionary(slot => slot.Key, slot => slot.Value!);
+        var channels = new List<int>();
+        if (model.ChannelsFromOptions)
+        {
+            foreach (var part in channelsText.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!int.TryParse(part, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var channel))
+                    throw new ArgumentException($"'{part}' ist keine gültige Kanalnummer.");
+                channels.Add(channel);
+            }
+        }
+        var json = new SystemTypeDeviceOptions(model.ModuleSlotCount > 0 ? slots : new Dictionary<int, string>(), channels).ToJson();
+        return DeviceCatalog.ParseOptions(model.Name, json).ToJson();
+    }
+
+    /// <summary>Plans of the type (released and others) and stations of the type that use the device key.</summary>
+    private static async Task<DeviceEditRules.DeviceUsage> LoadUsageAsync(TestpilotDbContext db, Guid systemId, string key)
+    {
+        var plans = await db.TestSteps
+            .Where(step => step.DeviceKey == key)
+            .Join(db.TestPlans.Where(plan => plan.TestSystemTypeId == systemId),
+                step => step.TestPlanId, plan => plan.Id, (step, plan) => new { plan.ArtNr, plan.Fz, plan.Version, plan.Status })
+            .Distinct()
+            .ToListAsync();
+        var stations = await db.StationDevices
+            .Where(device => device.DeviceKey == key)
+            .Join(db.Stations.Where(station => station.TestSystemTypeId == systemId),
+                device => device.StationId, station => station.Id, (device, station) => station.Name)
+            .Distinct()
+            .ToListAsync();
+        static string Text(string artNr, string fz, int version) => $"{artNr}/{fz} V{version}";
+        return new DeviceEditRules.DeviceUsage(
+            plans.Where(plan => plan.Status == PlanStatus.Released).Select(plan => Text(plan.ArtNr, plan.Fz, plan.Version)).Order().ToList(),
+            plans.Where(plan => plan.Status != PlanStatus.Released).Select(plan => Text(plan.ArtNr, plan.Fz, plan.Version)).Order().ToList(),
+            stations.Order().ToList());
+    }
+
+    private static string NormalizedOptions(SystemTypeDevice device)
+    {
+        try
+        {
+            return DeviceCatalog.ParseOptions(device.Model, device.OptionsJson).ToJson();
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            return device.OptionsJson;
+        }
+    }
+
+    private Task SaveDeviceAsync() => RunAsync(async () =>
+    {
+        if (selectedSystem is null) return;
+        var wasEditing = editingDeviceId.HasValue;
+        var key = deviceKey.Trim();
+        if (key.Length == 0)
+        {
+            ShowError("Bitte eine Gerätekennung eingeben.");
+            return;
+        }
+        if (selectedSystem.Devices.Any(device => device.Id != editingDeviceId && device.DeviceKey == key))
+        {
+            ShowError($"Die Gerätekennung '{key}' ist in diesem Prüfsystemtyp bereits vergeben.");
+            return;
+        }
+        var optionsJson = BuildOptionsJson();
+        string? warning = null;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            SystemTypeDevice device;
+            if (wasEditing)
+            {
+                device = await db.SystemTypeDevices.SingleOrDefaultAsync(item => item.Id == editingDeviceId!.Value && item.TestSystemTypeId == selectedSystem.Id)
+                    ?? throw new InvalidOperationException("Das Gerät existiert nicht mehr. Bitte neu laden.");
+                var usage = await LoadUsageAsync(db, selectedSystem.Id, device.DeviceKey);
+                var check = DeviceEditRules.Check(device, NormalizedOptions(device), key, modelName, optionsJson, usage);
+                if (check.Error is not null)
+                {
+                    ShowError(check.Error);
+                    return;
+                }
+                warning = check.Warning;
+            }
+            else
+            {
+                device = new SystemTypeDevice { TestSystemTypeId = selectedSystem.Id };
+                db.SystemTypeDevices.Add(device);
+            }
+            device.DeviceKey = key;
+            device.Model = modelName;
+            device.Description = deviceDescription.Trim();
+            device.OptionsJson = optionsJson;
+            await db.SaveChangesAsync();
+        }
+        CancelDeviceEdit();
+        await ReloadAsync(selectedSystem.Id);
+        Snackbar.Add(wasEditing ? "Gerät gespeichert." : "Gerät hinzugefügt.", Severity.Success);
+        if (warning is not null) Snackbar.Add(warning, Severity.Warning);
+    });
+
+    private Task RemoveDeviceAsync(Guid id) => RunAsync(async () =>
+    {
+        if (selectedSystem is null) return;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            var device = await db.SystemTypeDevices.SingleOrDefaultAsync(item => item.Id == id && item.TestSystemTypeId == selectedSystem.Id);
+            if (device is not null)
+            {
+                var usage = await LoadUsageAsync(db, selectedSystem.Id, device.DeviceKey);
+                if (usage.ReleasedPlans.Count + usage.OtherPlans.Count != 0)
+                {
+                    ShowError($"Gerät '{device.DeviceKey}' wird noch in Prüfplänen verwendet: {string.Join(", ", usage.ReleasedPlans.Concat(usage.OtherPlans))}.");
+                    return;
+                }
+                db.SystemTypeDevices.Remove(device);
+                await db.SaveChangesAsync();
+            }
+        }
+        if (editingDeviceId == id) CancelDeviceEdit();
+        await ReloadAsync(selectedSystem.Id);
+    });
+
+    private static string Describe(SystemTypeDevice device)
+    {
+        try
+        {
+            return DeviceCatalog.Describe(device.Model, device.OptionsJson);
+        }
+        catch (Exception exception) when (exception is ArgumentException or System.Text.Json.JsonException)
+        {
+            return "Ungültig: " + exception.Message;
+        }
+    }
+
+    private static string ChannelSummary(SystemTypeDevice device)
+    {
+        try
+        {
+            var profile = DeviceCatalog.CreateProfile(device.Model, device.OptionsJson);
+            if (profile.Channels.Count == 0) return "keine bekannt (Datenblatt fehlt)";
+            var numbers = profile.Channels.Select(channel => channel.Number).ToList();
+            return numbers.Count <= 6
+                ? string.Join(", ", numbers)
+                : $"{numbers.Count} ({numbers[0]} … {numbers[^1]})";
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidDataException or System.Text.Json.JsonException or YamlDotNet.Core.YamlException)
+        {
+            return "Profil fehlerhaft: " + exception.Message;
+        }
+    }
+
+    private IEnumerable<string> OpenTodos()
+    {
+        if (selectedSystem is null) yield break;
+        foreach (var device in selectedSystem.Devices.OrderBy(item => item.DeviceKey, StringComparer.Ordinal))
+        {
+            IReadOnlyList<string> todos;
+            try
+            {
+                todos = DeviceCatalog.CreateProfile(device.Model, device.OptionsJson).Todos;
+            }
+            catch (Exception exception) when (exception is ArgumentException or InvalidDataException or System.Text.Json.JsonException or YamlDotNet.Core.YamlException)
+            {
+                todos = [exception.Message];
+            }
+            foreach (var todo in todos)
+                yield return $"{device.DeviceKey}: {todo}";
+        }
+    }
+
+    private void ExportYaml()
+    {
+        if (selectedSystem is null || busy) return;
+        yamlText = YamlService.Export(selectedSystem);
+        errorMessage = null;
+    }
+
+    private Task ImportYamlAsync() => RunAsync(async () =>
+    {
+        var imported = YamlService.Import(yamlText);
+        var nameError = CheckSystemName(imported.Name.Trim(), null);
+        if (nameError is not null)
+        {
+            ShowError(nameError);
+            return;
+        }
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            db.TestSystemTypes.Add(imported);
+            await db.SaveChangesAsync();
+        }
+        await ShowSystemAsync(imported.Id);
+        Snackbar.Add("Prüfsystemtyp importiert.", Severity.Success);
+    });
+
+    private void ShowError(string message)
+    {
+        errorMessage = message;
+        Snackbar.Add(message, Severity.Error);
+    }
+}

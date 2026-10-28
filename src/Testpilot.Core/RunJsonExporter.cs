@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
@@ -8,10 +9,11 @@ namespace Testpilot.Core;
 public sealed record RunExportDocument(RunExportHeader Run, IReadOnlyList<DeviceExport> Devices, IReadOnlyList<CharacteristicExport> Characteristics);
 public sealed record RunExportHeader(string Fauf, [property: JsonPropertyName("artnr")] string ArtNr, string Fz,
     string Serial, string Station, string Operator, int PlanVersion, string SoftwareVersion,
-    DateTimeOffset Started, DateTimeOffset Finished, RunOutcome Result);
+    DateTimeOffset Started, DateTimeOffset Finished, RunOutcome Result, bool Simulated = false);
 public sealed record DeviceExport(string Id, string Idn);
 public sealed record CharacteristicExport(string Name, string? Device, int? Channel, string? Function,
-    double? Value, string? Unit, double? Low, double? High, StepOutcome Result,
+    double? Value, [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? TextValue,
+    string? Unit, double? Low, double? High, StepOutcome Result,
     DateTimeOffset Started, DateTimeOffset Finished, string? Error);
 
 public static class SoftwareVersion
@@ -26,6 +28,8 @@ public sealed class RunJsonExporter(string directory, ILogger<RunJsonExporter> l
     private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
+        // Keeps Ω, µ and umlauts readable for other programs; the file is never embedded in HTML.
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) }
     };
 
@@ -38,6 +42,8 @@ public sealed class RunJsonExporter(string directory, ILogger<RunJsonExporter> l
         foreach (var step in run.StepResults)
         {
             LimitChecker.Validate(step.LimitLow, step.LimitHigh);
+            if (step.Value.HasValue && step.TextValue is not null)
+                throw new InvalidOperationException("A step cannot contain both a numeric and text result.");
             if (step.Value.HasValue && !double.IsFinite(step.Value.Value))
                 throw new InvalidOperationException("Non-finite measurements must be stored as null with an error result.");
             if (step.FinishedAt < step.StartedAt)
@@ -46,13 +52,13 @@ public sealed class RunJsonExporter(string directory, ILogger<RunJsonExporter> l
 
         return new(
             new(run.Fauf, run.ArtNr, run.Fz, run.SerialNumber, run.Station, run.Operator,
-                run.PlanVersion, run.SoftwareVersion, run.StartedAt, run.FinishedAt.Value, run.Result.Value),
+                run.PlanVersion, run.SoftwareVersion, run.StartedAt, run.FinishedAt.Value, run.Result.Value, run.Simulated),
             run.Devices.OrderBy(device => device.DeviceKey, StringComparer.Ordinal)
                 .Select(device => new DeviceExport(device.DeviceKey, device.Identification)).ToArray(),
             run.StepResults.OrderBy(step => step.Order)
                 .Select(step => new CharacteristicExport(step.Name, step.DeviceKey, step.Channel, step.Function,
-                    step.Value, step.Unit.HasValue ? Units.Symbol(step.Unit.Value) : null, step.LimitLow, step.LimitHigh,
-                    step.Result, step.StartedAt, step.FinishedAt, step.ErrorMessage)).ToArray());
+                    step.Value, step.TextValue, step.Unit.HasValue ? Units.Symbol(step.Unit.Value) : null,
+                    step.LimitLow, step.LimitHigh, step.Result, step.StartedAt, step.FinishedAt, step.ErrorMessage)).ToArray());
     }
 
     /// <summary>Writes a complete snapshot atomically. Existing exports are never overwritten.</summary>

@@ -1,8 +1,17 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Testpilot.Core\Testpilot.Core.csproj" />
     <ProjectReference Include="..\Testpilot.Drivers.Abstractions\Testpilot.Drivers.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Testpilot.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="IviFoundation.Visa" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    <PackageReference Include="System.IO.Ports" Version="10.0.14" />
   </ItemGroup>
 
   <PropertyGroup>

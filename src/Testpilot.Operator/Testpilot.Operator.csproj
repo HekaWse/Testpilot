@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<OutputType>WinExe</OutputType>
+	<TargetFramework>net10.0-windows</TargetFramework>
+	<UseWPF>true</UseWPF>
+	<!-- Development runs (dotnet run / Visual Studio) share the editor's database, logs and exports.
+		 A published Testpilot.Operator.exe uses its own working directory. -->
+	<RunWorkingDirectory>$(MSBuildProjectDirectory)\..\Testpilot.Editor</RunWorkingDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+	<ProjectReference Include="..\Testpilot.Sequencer\Testpilot.Sequencer.csproj" />
+	<ProjectReference Include="..\Testpilot.Drivers\Testpilot.Drivers.csproj" />
+	<ProjectReference Include="..\Testpilot.Sap\Testpilot.Sap.csproj" />
+	<ProjectReference Include="..\Testpilot.Data\Testpilot.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+	<PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
