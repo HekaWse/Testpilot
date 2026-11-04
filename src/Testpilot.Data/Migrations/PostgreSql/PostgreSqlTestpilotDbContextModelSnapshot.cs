@@ -396,6 +396,12 @@ namespace Testpilot.Data.Migrations.PostgreSql
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("RetryDelayMilliseconds")
+                        .HasColumnType("double precision");
+
                     b.Property<int>("StepType")
                         .HasColumnType("integer");
 

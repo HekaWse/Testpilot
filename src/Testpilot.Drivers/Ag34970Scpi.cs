@@ -25,7 +25,7 @@ internal sealed class Ag34970Scpi : ISwitchMultimeter
         AllowDuplicateProperties = false,
         NumberHandling = JsonNumberHandling.Strict
     };
-    private static readonly Regex FunctionPattern = new("^(VOLT:DC|VOLT:AC|CURR:DC|CURR:AC|RES|FRES)$", RegexOptions.CultureInvariant);
+    private static readonly Regex FunctionPattern = new("^(VOLT:DC|VOLT:AC|CURR:DC|CURR:AC|RES|FRES|FREQ)$", RegexOptions.CultureInvariant);
     private readonly Ag34970Options options;
     private readonly VisaSessionFactory visaSessionFactory;
     private readonly SemaphoreSlim operationLock = new(1, 1);

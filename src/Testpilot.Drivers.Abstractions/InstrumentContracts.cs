@@ -116,6 +116,32 @@ public interface IBarcodeScanner : IInstrument
     Task<string> ScanAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Answer of the device under test. <see cref="Outputs"/> holds the returned values by name (e.g. "major", "data",
+/// "rssi"); single values are lists with one element.
+/// </summary>
+public sealed record DutResponse(bool Success, IReadOnlyDictionary<string, double[]> Outputs)
+{
+    public static DutResponse Ok(IReadOnlyDictionary<string, double[]>? outputs = null) =>
+        new(true, outputs ?? new Dictionary<string, double[]>(StringComparer.Ordinal));
+
+    public static DutResponse Failed { get; } = new(false, new Dictionary<string, double[]>(StringComparer.Ordinal));
+
+    public override string ToString() =>
+        $"{(Success ? "OK" : "failed")} {string.Join("; ", Outputs.Select(output =>
+            $"{output.Key}=[{string.Join(", ", output.Value.Select(value => value.ToString(System.Globalization.CultureInfo.InvariantCulture)))}]"))}".TrimEnd();
+}
+
+/// <summary>
+/// Communication with the device under test (e.g. the FSA production DLL). An operation is a named command of the
+/// device library with numeric arguments, e.g. <c>SendGenericTestCommand(8, 5)</c>.
+/// </summary>
+public interface IDutCommunication : IInstrument
+{
+    Task<DutResponse> ExecuteAsync(string operation, IReadOnlyList<double> arguments,
+        CancellationToken cancellationToken = default);
+}
+
 /// <summary>Result lamp of the test adapter, shown when the adapter is released after a run.</summary>
 public enum FixtureLamp
 {

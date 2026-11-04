@@ -391,6 +391,12 @@ namespace Testpilot.Data.Migrations.Sqlite
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("RetryDelayMilliseconds")
+                        .HasColumnType("REAL");
+
                     b.Property<int>("StepType")
                         .HasColumnType("INTEGER");
 

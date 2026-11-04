@@ -6,7 +6,8 @@ public enum DeviceCapability
     PowerSupply,
     Programmer,
     BarcodeScanner,
-    TestFixture
+    TestFixture,
+    DutCommunication
 }
 
 public enum ChannelType

@@ -24,7 +24,14 @@ public sealed record ExecutionDevice(string DeviceKey, string? Driver, string? C
 public sealed record MeasurementConfigurationAction(string DeviceKey, MeasurementConfiguration Configuration);
 public sealed record ExecutionStep(int Order, string Name, StepType StepType, string? DeviceKey,
     string ParametersJson, double? LimitLow, double? LimitHigh, MeasurementUnit? Unit, bool BreakpointFlag,
-    MeasurementConfiguration? ConfigureMeasurement);
+    MeasurementConfiguration? ConfigureMeasurement)
+{
+    /// <summary>Additional attempts after Fail or Error (see <see cref="TestStep.RetryCount"/>).</summary>
+    public int RetryCount { get; init; }
+
+    /// <summary>Wait time before each repetition in milliseconds.</summary>
+    public double RetryDelayMilliseconds { get; init; }
+}
 public sealed record ExecutionInitPhase(IReadOnlyList<MeasurementConfigurationAction> Configurations);
 public sealed record ExecutionCleanupPhase(IReadOnlyList<string> SafeStateDeviceKeys,
     IReadOnlyList<string> DisconnectDeviceKeys);

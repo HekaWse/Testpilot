@@ -49,7 +49,7 @@ public sealed class Ag34970ATests
         }
         for (var channel = 111; channel <= 120; channel++)
         {
-            Assert.Equal(["RES", "VOLT:AC", "VOLT:DC"], profile.GetChannel(channel).SupportedFunctions.Order());
+            Assert.Equal(["FREQ", "RES", "VOLT:AC", "VOLT:DC"], profile.GetChannel(channel).SupportedFunctions.Order());
             Assert.Null(profile.GetChannel(channel).FourWireSenseChannel);
         }
         foreach (var channel in new[] { 121, 122 })

@@ -88,7 +88,9 @@ public sealed class DriverHost : IDriverHost
                             ? new TracedBarcodeScanner(Instrument, scanner, logger)
                             : typeof(T) == typeof(ITestFixture) && inner is ITestFixture fixture
                                 ? new TracedTestFixture(Instrument, fixture, logger)
-                                : null;
+                                : typeof(T) == typeof(IDutCommunication) && inner is IDutCommunication dut
+                                    ? new TracedDutCommunication(Instrument, dut, logger)
+                                    : null;
             return wrapper as T ?? throw new NotSupportedException(
                 $"Device '{DeviceKey}' does not provide capability '{typeof(T).Name}'.");
         }

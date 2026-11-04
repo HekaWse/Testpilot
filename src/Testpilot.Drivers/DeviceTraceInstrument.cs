@@ -110,3 +110,12 @@ internal sealed class TracedTestFixture(IInstrument inner, ITestFixture capabili
     public Task ReleaseAsync(FixtureLamp lamp, CancellationToken cancellationToken = default) =>
         TraceAsync($"FIXTURE-RELEASE lamp={lamp}", () => capability.ReleaseAsync(lamp, cancellationToken));
 }
+
+internal sealed class TracedDutCommunication(IInstrument inner, IDutCommunication capability, ILogger logger)
+    : DeviceTraceDecoratorBase(inner, logger), IDutCommunication
+{
+    public Task<DutResponse> ExecuteAsync(string operation, IReadOnlyList<double> arguments,
+        CancellationToken cancellationToken = default) =>
+        TraceAsync(FormattableString.Invariant($"DUT {operation}({string.Join(", ", arguments)})"),
+            () => capability.ExecuteAsync(operation, arguments, cancellationToken), response => response.ToString());
+}

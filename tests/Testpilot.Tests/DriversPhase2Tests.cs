@@ -128,7 +128,7 @@ public sealed class DriversPhase2Tests
     public async Task DriverRegistryRejectsDuplicatesAndUnknownNames()
     {
         var registry = new DriverRegistry().AddSimulatedDrivers();
-        Assert.Equal(new[] { "SimulatedBarcodeScanner", "SimulatedFixture", "SimulatedPowerSupply", "SimulatedProgrammer", "SimulatedSwitchMultimeter" }, registry.RegisteredDrivers);
+        Assert.Equal(new[] { "SimulatedBarcodeScanner", "SimulatedDutCommunication", "SimulatedFixture", "SimulatedPowerSupply", "SimulatedProgrammer", "SimulatedSwitchMultimeter" }, registry.RegisteredDrivers);
         Assert.Throws<InvalidOperationException>(() => registry.Register("SimulatedProgrammer", _ => throw new InvalidOperationException()));
         using var loggerFactory = LoggerFactory.Create(_ => { });
         var host = new DriverHost(registry, loggerFactory);

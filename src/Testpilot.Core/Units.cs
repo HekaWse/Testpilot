@@ -14,8 +14,23 @@ public static class Units
         MeasurementUnit.Volt => "V",
         MeasurementUnit.Ampere => "A",
         MeasurementUnit.Ohm => "Ω",
+        MeasurementUnit.Hertz => "Hz",
+        MeasurementUnit.Celsius => "°C",
+        MeasurementUnit.DecibelMilliwatt => "dBm",
+        MeasurementUnit.Number => "",
         _ => throw new ArgumentOutOfRangeException(nameof(unit))
     };
+
+    /// <summary>German display name for selection lists.</summary>
+    public static string DisplayName(MeasurementUnit unit) => unit switch
+    {
+        MeasurementUnit.Number => "ohne Einheit",
+        _ => Symbol(unit)
+    };
+
+    /// <summary>Only V, A, Ω and Hz take SI prefixes; °C, dBm and plain numbers are written without.</summary>
+    public static bool UsesPrefixes(MeasurementUnit unit) =>
+        unit is MeasurementUnit.Volt or MeasurementUnit.Ampere or MeasurementUnit.Ohm or MeasurementUnit.Hertz;
 
     /// <summary>Parses a number with an optional SI prefix and unit symbol into SI units.</summary>
     public static double Parse(string text, MeasurementUnit unit, IFormatProvider? culture = null)
@@ -24,7 +39,7 @@ public static class Units
         var remaining = text.Trim();
         foreach (var symbol in AcceptedSymbols(unit))
         {
-            if (remaining.EndsWith(symbol, StringComparison.Ordinal))
+            if (symbol.Length > 0 && remaining.EndsWith(symbol, StringComparison.Ordinal))
             {
                 remaining = remaining[..^symbol.Length].TrimEnd();
                 break;
@@ -32,7 +47,7 @@ public static class Units
         }
 
         var factor = 1d;
-        if (remaining.Length > 0 && Factors.TryGetValue(NormalizePrefix(remaining[^1..]), out var prefixFactor))
+        if (UsesPrefixes(unit) && remaining.Length > 0 && Factors.TryGetValue(NormalizePrefix(remaining[^1..]), out var prefixFactor))
         {
             factor = prefixFactor;
             remaining = remaining[..^1].TrimEnd();
@@ -55,6 +70,7 @@ public static class Units
     private static string[] AcceptedSymbols(MeasurementUnit unit) => unit switch
     {
         MeasurementUnit.Ohm => [Symbol(unit), "\u2126", "Ohm", "ohm"],
+        MeasurementUnit.Celsius => [Symbol(unit), "C"],
         _ => [Symbol(unit)]
     };
 
@@ -68,6 +84,8 @@ public static class Units
             throw new ArgumentOutOfRangeException(nameof(value), "The value must be finite.");
         // Round first, so 999.9999 V is shown as "1 kV" and not as "1000 V".
         var rounded = double.Parse(value.ToString("G6", CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        if (!UsesPrefixes(unit))
+            return $"{rounded.ToString("G6", culture ?? CultureInfo.InvariantCulture)} {Symbol(unit)}".TrimEnd();
         var magnitude = Math.Abs(rounded);
         var prefix = magnitude == 0 ? ""
             : magnitude >= 1e6 ? "M"
@@ -84,11 +102,11 @@ public static class Units
     {
         if (!double.IsFinite(value))
             throw new ArgumentOutOfRangeException(nameof(value), "The value must be finite.");
-        if (!Factors.TryGetValue(prefix, out var factor))
+        if (!Factors.TryGetValue(prefix, out var factor) || (prefix.Length > 0 && !UsesPrefixes(unit)))
             throw new ArgumentException("Unsupported SI prefix.", nameof(prefix));
         var scaled = value / factor;
         if (!double.IsFinite(scaled))
             throw new ArgumentOutOfRangeException(nameof(value), "The scaled value must be finite.");
-        return $"{scaled.ToString("G", culture ?? CultureInfo.InvariantCulture)} {prefix}{Symbol(unit)}";
+        return $"{scaled.ToString("G", culture ?? CultureInfo.InvariantCulture)} {prefix}{Symbol(unit)}".TrimEnd();
     }
 }

@@ -36,6 +36,7 @@ public sealed class DriverRegistry
         ValidateCapability(instrument, DeviceCapability.Programmer, instrument is IProgrammer);
         ValidateCapability(instrument, DeviceCapability.BarcodeScanner, instrument is IBarcodeScanner);
         ValidateCapability(instrument, DeviceCapability.TestFixture, instrument is ITestFixture);
+        ValidateCapability(instrument, DeviceCapability.DutCommunication, instrument is IDutCommunication);
         return instrument;
     }
 

@@ -15,5 +15,6 @@ public static class StandardDrivers
         .AddVisaGeneric()
         .AddSensopartTcp()
         .AddDatalogicMatrixSerial()
-        .AddPs05Fixture();
+        .AddPs05Fixture()
+        .AddFsaCommunication();
 }

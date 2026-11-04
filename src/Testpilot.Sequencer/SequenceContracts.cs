@@ -6,7 +6,51 @@ namespace Testpilot.Sequencer;
 
 /// <summary>Order data of one run. <see cref="Operator"/> is the short name of a debug login, otherwise empty.</summary>
 public sealed record RunContext(string Fauf, string SerialNumber, string Station, string Operator,
-    bool SingleStepMode = false, bool Simulated = false);
+    bool SingleStepMode = false, bool Simulated = false)
+{
+    /// <summary>Values of the finished steps; the runner starts every run with an empty set.</summary>
+    public RunValues Values { get; init; } = new();
+}
+
+/// <summary>
+/// Values of one run for formulas: <c>{Step name}</c> is the value of a step, <c>{Step name:output}</c> an output of a
+/// DUT command (e.g. <c>{GS RF lesen:correctTx433}</c>) and <c>{serial}</c>/<c>{fauf}</c> the numeric order data.
+/// </summary>
+public sealed class RunValues
+{
+    private readonly Dictionary<string, double[]> values = new(StringComparer.Ordinal);
+
+    public void Set(string name, IReadOnlyList<double> list)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        values[name] = list.ToArray();
+    }
+
+    /// <summary>Stores each output of a DUT command as "Step:output".</summary>
+    public void SetOutputs(string stepName, IReadOnlyDictionary<string, double[]> outputs)
+    {
+        foreach (var (output, list) in outputs)
+            Set($"{stepName}:{output}", list);
+    }
+
+    /// <summary>Returns the values of a reference or throws <see cref="FormulaException"/>.</summary>
+    public IReadOnlyList<double> Resolve(string name, RunContext context)
+    {
+        if (values.TryGetValue(name, out var list))
+            return list;
+        if (name is "serial" or "fauf")
+        {
+            var text = name == "serial" ? context.SerialNumber : context.Fauf;
+            return double.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var number)
+                ? [number]
+                : throw new FormulaException($"{{{name}}} '{text}' is not a number.");
+        }
+        throw new FormulaException($"No value named '{{{name}}}' exists yet. Values are available after the step with this name has run.");
+    }
+
+    public override string ToString() =>
+        string.Join("; ", values.Select(item => $"{item.Key}=[{string.Join(", ", item.Value)}]"));
+}
 /// <summary>Progress of one step. <see cref="Result"/> is set when the step has finished (completed, failed, error).</summary>
 public sealed record SequenceProgress(int StepOrder, int StepCount, string StepName, string State,
     RunStepResult? Result = null);

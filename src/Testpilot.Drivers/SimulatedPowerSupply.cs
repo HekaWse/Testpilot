@@ -245,6 +245,7 @@ public static class SimulatedDriverRegistration
         registry.Register("SimulatedProgrammer", configuration => new SimulatedProgrammer(configuration));
         registry.Register("SimulatedBarcodeScanner", configuration => new SimulatedBarcodeScanner(configuration));
         registry.Register("SimulatedFixture", configuration => new SimulatedFixture(configuration));
+        registry.Register("SimulatedDutCommunication", configuration => new SimulatedDutCommunication(configuration));
         return registry;
     }
 }

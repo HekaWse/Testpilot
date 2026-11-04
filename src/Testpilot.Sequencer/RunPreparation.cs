@@ -272,6 +272,7 @@ internal static class SimulatedDriverMapping
                 StepType.SetPower => "SimulatedPowerSupply",
                 StepType.Program => "SimulatedProgrammer",
                 StepType.Scan => "SimulatedBarcodeScanner",
+                StepType.DutCommand => "SimulatedDutCommunication",
                 _ => null
             };
             if (driver is null)
@@ -322,7 +323,8 @@ internal static class SimulatedDriverMapping
         {
             Order = step.Order, Name = step.Name, StepType = step.StepType, DeviceKey = step.DeviceKey,
             ParametersJson = step.ParametersJson, LimitLow = step.LimitLow, LimitHigh = step.LimitHigh,
-            Unit = step.Unit, BreakpointFlag = step.BreakpointFlag
+            Unit = step.Unit, BreakpointFlag = step.BreakpointFlag,
+            RetryCount = step.RetryCount, RetryDelayMilliseconds = step.RetryDelayMilliseconds
         }).ToList()
     };
 }

@@ -85,6 +85,8 @@ public static class DeviceCatalog
             "SimulatedFixture", ProfileFile: "Ps05Fixture.yaml"),
         new("J-Link", "SEGGER J-Link (J-Flash Kommandozeile)", DeviceCapability.Programmer, ["SeggerJFlashCli"],
             "SimulatedProgrammer"),
+        new("FSA", "FSA-Prüfling oder Golden Sample (FSACommunication.dll, seriell)", DeviceCapability.DutCommunication,
+            ["FsaCommunication"], "SimulatedDutCommunication"),
         new("SimDmm", "Simuliertes Schaltmultimeter", DeviceCapability.SwitchMultimeter, [],
             "SimulatedSwitchMultimeter", ChannelsFromOptions: true),
         new("SimPowerSupply", "Simuliertes Netzteil", DeviceCapability.PowerSupply, [],

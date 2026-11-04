@@ -396,6 +396,12 @@ namespace Testpilot.Data.Migrations.SqlServer
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int");
+
+                    b.Property<double>("RetryDelayMilliseconds")
+                        .HasColumnType("float");
+
                     b.Property<int>("StepType")
                         .HasColumnType("int");
 

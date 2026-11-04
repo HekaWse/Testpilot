@@ -41,6 +41,7 @@ public sealed class SequenceRunner
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(runContext);
         ValidateContext(runContext);
+        runContext = runContext with { Values = new() };
         plan = ExecutionPlanSettings.Resolve(plan, []);
 
         var run = new Run
@@ -99,21 +100,19 @@ public sealed class SequenceRunner
                     if (runContext.SingleStepMode)
                         await interaction.WaitForContinueAsync(step.Order, step.Name, cancellationToken);
                     ProgressChanged?.Invoke(this, new(new(step.Order, plan.Steps.Count, step.Name, "started")));
-                    if (step.ConfigureMeasurement is not null)
-                        await WithTimeoutAsync(token => session.GetCapability<ISwitchMultimeter>(step.DeviceKey!)
-                            .ConfigureMeasurementAsync(step.ConfigureMeasurement, token), cancellationToken);
-
-                    var data = step.StepType switch
+                    StepExecutionData data;
+                    for (var attempt = 0; ; attempt++)
                     {
-                        // Operator answers and waits are bounded by the operator or the step itself.
-                        StepType.OperatorPrompt or StepType.Wait =>
-                            await executors.ExecuteAsync(step, session, runContext, interaction, cancellationToken),
-                        StepType.Program or StepType.External or StepType.CustomCode =>
-                            await WithTimeoutAsync(token => executors.ExecuteAsync(step, session, runContext, interaction, token),
-                                cancellationToken, options.LongOperationTimeout),
-                        _ => await WithTimeoutAsync(token => executors.ExecuteAsync(step, session, runContext,
-                            interaction, token), cancellationToken)
-                    };
+                        data = await ExecuteOnceAsync(step, session, runContext, interaction, cancellationToken, attempt);
+                        if (data.Result is not (StepOutcome.Fail or StepOutcome.Error) || attempt >= step.RetryCount)
+                            break;
+                        logger.LogInformation("Step {StepOrder} ({StepName}) attempt {Attempt} gave {Result}; retrying",
+                            step.Order, step.Name, attempt + 1, data.Result);
+                        if (step.RetryDelayMilliseconds > 0)
+                            await Task.Delay(TimeSpan.FromMilliseconds(step.RetryDelayMilliseconds), cancellationToken);
+                    }
+                    if (data.Value is double stepValue && double.IsFinite(stepValue))
+                        runContext.Values.Set(step.Name, [stepValue]);
                     var outcome = data.Result ?? StepOutcome.Pass;
                     var stepResult = CreateStepResult(step, started, DateTimeOffset.UtcNow, data, outcome);
                     run.StepResults.Add(stepResult);
@@ -216,6 +215,37 @@ public sealed class SequenceRunner
         return new(run, exportPath, saveError);
     }
 
+    /// <summary>
+    /// One attempt of a step. With a retry an exception counts as Error, so the next attempt can follow;
+    /// on the last attempt the exception is passed on as before.
+    /// </summary>
+    private async Task<StepExecutionData> ExecuteOnceAsync(ExecutionStep step, DeviceSession session, RunContext runContext,
+        ISequenceInteraction interaction, CancellationToken cancellationToken, int attempt)
+    {
+        try
+        {
+            if (step.ConfigureMeasurement is not null)
+                await WithTimeoutAsync(token => session.GetCapability<ISwitchMultimeter>(step.DeviceKey!)
+                    .ConfigureMeasurementAsync(step.ConfigureMeasurement, token), cancellationToken);
+            return step.StepType switch
+            {
+                // Operator answers and waits are bounded by the operator or the step itself.
+                StepType.OperatorPrompt or StepType.Wait =>
+                    await executors.ExecuteAsync(step, session, runContext, interaction, cancellationToken),
+                StepType.Program or StepType.External or StepType.CustomCode =>
+                    await WithTimeoutAsync(token => executors.ExecuteAsync(step, session, runContext, interaction, token),
+                        cancellationToken, options.LongOperationTimeout),
+                _ => await WithTimeoutAsync(token => executors.ExecuteAsync(step, session, runContext,
+                    interaction, token), cancellationToken)
+            };
+        }
+        catch (Exception exception) when (attempt < step.RetryCount && !cancellationToken.IsCancellationRequested)
+        {
+            logger.LogWarning(exception, "Step {StepOrder} ({StepName}) attempt {Attempt} failed", step.Order, step.Name, attempt + 1);
+            return new(ErrorMessage: exception.Message, Result: StepOutcome.Error);
+        }
+    }
+
     /// <summary>Writes the run to the database. Returns an error text instead of throwing, so the export still runs.</summary>
     private async Task<string?> SaveAsync(Run run)
     {
@@ -278,6 +308,10 @@ public sealed class SequenceRunner
         else if (step.StepType == StepType.Relay)
         {
             channel = StepParameters.Deserialize<RelayParameters>(step.ParametersJson).Channel;
+        }
+        else if (step.StepType == StepType.DutCommand)
+        {
+            function = StepParameters.Deserialize<DutCommandParameters>(step.ParametersJson).Operation;
         }
         return new RunStepResult
         {

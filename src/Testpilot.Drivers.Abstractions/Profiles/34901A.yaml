@@ -18,93 +18,93 @@ channels:
   - number: 1
     name: "CH01 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 11
   - number: 2
     name: "CH02 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 12
   - number: 3
     name: "CH03 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 13
   - number: 4
     name: "CH04 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 14
   - number: 5
     name: "CH05 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 15
   - number: 6
     name: "CH06 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 16
   - number: 7
     name: "CH07 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 17
   - number: 8
     name: "CH08 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 18
   - number: 9
     name: "CH09 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 19
   - number: 10
     name: "CH10 (Bank 1)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES, FREQ]
     fourWireSenseChannel: 20
   - number: 11
     name: "CH11 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 12
     name: "CH12 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 13
     name: "CH13 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 14
     name: "CH14 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 15
     name: "CH15 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 16
     name: "CH16 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 17
     name: "CH17 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 18
     name: "CH18 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 19
     name: "CH19 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 20
     name: "CH20 (Bank 2)"
     type: GeneralPurpose
-    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FREQ]
   - number: 21
     name: "CH21 (Strom, abgesichert)"
     type: Current
@@ -122,4 +122,5 @@ specialCases:
   - "Grenzen: max. 300 V (CAT I), 1 A, 50 W Schaltleistung (S. 212)."
   - "Messbereiche des internen DMM: Spannung 100 mV-300 V, Widerstand 100 Ω-100 MΩ (S. 39); sie sind im Modulprofil nicht begrenzt."
   - "Messungen setzen das (optionale) interne DMM des 34970A voraus (S. 125)."
+  - "Frequenz (FREQ) auf Kanal 1-20, Messung über den AC-Spannungspfad (34970A-Handbuch: FREQ/PER auf den Kanälen des 34901A)."
 todos: []

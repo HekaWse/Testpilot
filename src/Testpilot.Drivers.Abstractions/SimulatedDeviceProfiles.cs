@@ -6,7 +6,7 @@ namespace Testpilot.Drivers.Abstractions;
 /// </summary>
 public static class SimulatedDeviceProfiles
 {
-    public static readonly IReadOnlyList<string> MeasurementFunctions = ["VOLT:DC", "VOLT:AC", "CURR:DC", "CURR:AC", "RES", "FRES"];
+    public static readonly IReadOnlyList<string> MeasurementFunctions = ["VOLT:DC", "VOLT:AC", "CURR:DC", "CURR:AC", "RES", "FRES", "FREQ"];
 
     public static DeviceProfile Create(string id, string model, DeviceCapability capability,
         IEnumerable<int>? channelNumbers = null)

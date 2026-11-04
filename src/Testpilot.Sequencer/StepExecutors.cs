@@ -24,7 +24,8 @@ public sealed class StepExecutorRegistry
         {
             new MeasureStepExecutor(), new RelayStepExecutor(), new SetPowerStepExecutor(),
             new ProgramStepExecutor(), new ScanStepExecutor(), new WaitStepExecutor(),
-            new OperatorPromptStepExecutor(), new ExternalStepExecutor(), new CustomCodeStepExecutor()
+            new OperatorPromptStepExecutor(), new ExternalStepExecutor(), new CustomCodeStepExecutor(),
+            new DutCommandStepExecutor(), new CalculateStepExecutor()
         };
         executors = all.ToDictionary(executor => executor.StepType);
         CustomSteps = customSteps;
@@ -47,11 +48,83 @@ public sealed class MeasureStepExecutor : IStepExecutor
         ISequenceInteraction interaction, CustomStepRegistry customSteps, CancellationToken cancellationToken)
     {
         var parameters = StepParameters.Deserialize<MeasureParameters>(step.ParametersJson);
-        var value = await devices.GetCapability<ISwitchMultimeter>(step.DeviceKey!)
-            .MeasureAsync(parameters.Channel, cancellationToken);
+        var multimeter = devices.GetCapability<ISwitchMultimeter>(step.DeviceKey!);
+        var readings = new List<double>();
+        for (var sample = 0; sample < (parameters.Samples ?? 1); sample++)
+            readings.Add(await multimeter.MeasureAsync(parameters.Channel, cancellationToken));
+        var value = Average(readings, parameters.DiscardHighest ?? 0);
         var check = LimitChecker.Check(value, step.LimitLow, step.LimitHigh);
-        return new(double.IsFinite(value) ? value : null, Result: check.Result,
+        return new(double.IsFinite(value) ? value : null,
+            TextValue: readings.Count > 1 ? FormattableString.Invariant($"Einzelwerte: {string.Join("; ", readings)}") : null,
+            Result: check.Result,
             ErrorMessage: check.Result == StepOutcome.Error ? "The measurement was not finite." : null);
+    }
+
+    /// <summary>Mean of the readings after the <paramref name="discardHighest"/> largest readings are dropped.</summary>
+    public static double Average(IReadOnlyList<double> readings, int discardHighest)
+    {
+        if (discardHighest < 0 || discardHighest >= readings.Count)
+            throw new ArgumentOutOfRangeException(nameof(discardHighest),
+                $"{discardHighest} of {readings.Count} readings cannot be discarded.");
+        return readings.Order().Take(readings.Count - discardHighest).Average();
+    }
+}
+
+/// <summary>
+/// Sends one command to a DUT or golden sample. The value is the Output formula (e.g. <c>{rssi868}</c>), otherwise
+/// 1 for an acknowledged command. With Text and Expected the formatted text is compared (e.g. firmware version).
+/// </summary>
+public sealed class DutCommandStepExecutor : IStepExecutor
+{
+    public StepType StepType => StepType.DutCommand;
+
+    public async Task<StepExecutionData> ExecuteAsync(ExecutionStep step, DeviceSession devices, RunContext runContext,
+        ISequenceInteraction interaction, CustomStepRegistry customSteps, CancellationToken cancellationToken)
+    {
+        var parameters = StepParameters.Deserialize<DutCommandParameters>(step.ParametersJson);
+        IReadOnlyList<double> RunValue(string name) => runContext.Values.Resolve(name, runContext);
+        var arguments = (parameters.Arguments ?? []).Select(argument => Formula.Evaluate(argument, RunValue)).ToArray();
+        var response = await devices.GetCapability<IDutCommunication>(step.DeviceKey!)
+            .ExecuteAsync(parameters.Operation, arguments, cancellationToken);
+        runContext.Values.SetOutputs(step.Name, response.Outputs);
+        if (!response.Success)
+            return new(TextValue: response.ToString(), Result: StepOutcome.Error,
+                ErrorMessage: $"The device did not acknowledge '{parameters.Operation}'.");
+
+        // The step's own outputs come first, so "{rssi868}" means the output of this command.
+        IReadOnlyList<double> Resolve(string name) =>
+            response.Outputs.TryGetValue(name, out var list) ? list : RunValue(name);
+        if (!string.IsNullOrWhiteSpace(parameters.Text))
+        {
+            var text = Formula.FormatText(parameters.Text!, Resolve);
+            if (parameters.Expected is null)
+                return new(TextValue: text);
+            var equal = string.Equals(text, parameters.Expected, StringComparison.Ordinal);
+            return new(equal ? 1 : 0, text, equal ? StepOutcome.Pass : StepOutcome.Fail,
+                equal ? null : $"Expected '{parameters.Expected}', read '{text}'.");
+        }
+        if (string.IsNullOrWhiteSpace(parameters.Output))
+            return new(1, response.ToString(), LimitChecker.Check(1, step.LimitLow, step.LimitHigh).Result);
+        var value = Formula.Evaluate(parameters.Output!, Resolve);
+        var check = LimitChecker.Check(value, step.LimitLow, step.LimitHigh);
+        return new(double.IsFinite(value) ? value : null, response.ToString(), check.Result,
+            check.Result == StepOutcome.Error ? "The value is not finite." : null);
+    }
+}
+
+/// <summary>Calculates a value from earlier step values, e.g. <c>{V114} / {V103}</c>, and checks the limits.</summary>
+public sealed class CalculateStepExecutor : IStepExecutor
+{
+    public StepType StepType => StepType.Calculate;
+
+    public Task<StepExecutionData> ExecuteAsync(ExecutionStep step, DeviceSession devices, RunContext runContext,
+        ISequenceInteraction interaction, CustomStepRegistry customSteps, CancellationToken cancellationToken)
+    {
+        var formula = StepParameters.Deserialize<CalculateParameters>(step.ParametersJson).Formula;
+        var value = Formula.Evaluate(formula, name => runContext.Values.Resolve(name, runContext));
+        var check = LimitChecker.Check(value, step.LimitLow, step.LimitHigh);
+        return Task.FromResult(new StepExecutionData(double.IsFinite(value) ? value : null, formula, check.Result,
+            check.Result == StepOutcome.Error ? "The result is not finite (e.g. division by zero)." : null));
     }
 }
 

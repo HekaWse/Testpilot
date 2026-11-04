@@ -28,7 +28,8 @@ public sealed class ExecutionPlanOptimizer
             {
                 Order = step.Order, Name = step.Name, StepType = step.StepType, DeviceKey = step.DeviceKey,
                 ParametersJson = resolver.ResolveJson(step.ParametersJson, deferStation: true),
-                LimitLow = step.LimitLow, LimitHigh = step.LimitHigh, Unit = step.Unit
+                LimitLow = step.LimitLow, LimitHigh = step.LimitHigh, Unit = step.Unit,
+                RetryCount = step.RetryCount, RetryDelayMilliseconds = step.RetryDelayMilliseconds
             });
             if (orderedSteps[index].Order != index)
                 throw new ArgumentException("Step order must be contiguous and start at zero.", nameof(plan));
@@ -58,6 +59,7 @@ public sealed class ExecutionPlanOptimizer
                 StepType.SetPower => DeviceCapability.PowerSupply,
                 StepType.Program => DeviceCapability.Programmer,
                 StepType.Scan => DeviceCapability.BarcodeScanner,
+                StepType.DutCommand => DeviceCapability.DutCommunication,
                 _ => (DeviceCapability?)null
             };
             if (requiredCapability.HasValue && !profile.Capabilities.Contains(requiredCapability.Value))
@@ -127,7 +129,11 @@ public sealed class ExecutionPlanOptimizer
             }
 
             executionSteps.Add(new(step.Order, step.Name, step.StepType, step.DeviceKey, step.ParametersJson,
-                step.LimitLow, step.LimitHigh, step.Unit, step.BreakpointFlag, configure));
+                step.LimitLow, step.LimitHigh, step.Unit, step.BreakpointFlag, configure)
+            {
+                RetryCount = step.RetryCount,
+                RetryDelayMilliseconds = step.RetryDelayMilliseconds
+            });
             if (step.StepType is StepType.External or StepType.CustomCode)
             {
                 // Foreign programs and custom code can change any device; no profile can describe that.
@@ -212,6 +218,7 @@ public sealed class ExecutionPlanOptimizer
         StepType.SetPower => "setPower",
         StepType.Program => "program",
         StepType.Scan => "scan",
+        StepType.DutCommand => "dutCommand",
         _ => "unknown"
     };
 }

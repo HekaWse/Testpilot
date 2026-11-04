@@ -1,8 +1,9 @@
 namespace Testpilot.Core;
 
 public enum PlanStatus { Draft = 0, Released = 1, Retired = 2 }
-public enum StepType { Measure, Relay, SetPower, Program, Scan, Wait, OperatorPrompt, External, CustomCode }
-public enum MeasurementUnit { Volt, Ampere, Ohm }
+// New values are only appended: the database stores the numbers.
+public enum StepType { Measure, Relay, SetPower, Program, Scan, Wait, OperatorPrompt, External, CustomCode, DutCommand, Calculate }
+public enum MeasurementUnit { Volt, Ampere, Ohm, Hertz, Celsius, DecibelMilliwatt, Number }
 public enum StepOutcome { Pass, Fail, Error, Skipped }
 public enum RunOutcome { Pass, Fail, Error, Aborted }
 
@@ -100,6 +101,10 @@ public sealed class TestStep
     public double? LimitHigh { get; set; }
     public MeasurementUnit? Unit { get; set; }
     public bool BreakpointFlag { get; set; }
+    /// <summary>Additional attempts when the step fails or ends with an error; only the last attempt counts.</summary>
+    public int RetryCount { get; set; }
+    /// <summary>Pause before each repeated attempt.</summary>
+    public double RetryDelayMilliseconds { get; set; }
 }
 
 public sealed class Run
