@@ -26,6 +26,8 @@ public sealed class TestPlanService(TestpilotDbContext database, ILogger<TestPla
             || !StringComparer.Ordinal.Equals(executionPlan.ArtNr, plan.ArtNr)
             || !StringComparer.Ordinal.Equals(executionPlan.Fz, plan.Fz))
             throw new PlanConflictException("Der Ausführungsplan gehört nicht zu diesem Entwurf. Bitte neu laden.");
+        if (!NamedSettings.Deserialize(plan.SettingsJson).SequenceEqual(executionPlan.Settings))
+            throw new PlanConflictException("Die Einstellungen wurden seit der Vorschau geändert. Bitte die Vorschau neu erstellen.");
         var steps = plan.Steps.OrderBy(step => step.Order).ToArray();
         if (steps.Length != executionPlan.Steps.Count || steps.Where((step, index) => !Matches(step, executionPlan.Steps[index])).Any())
             throw new PlanConflictException("Der Ausführungsplan passt nicht mehr zu den Schritten des Entwurfs. Bitte neu laden.");
@@ -96,6 +98,7 @@ public sealed class TestPlanService(TestpilotDbContext database, ILogger<TestPla
             Fz = source.Fz,
             Version = checked(highestVersion + 1),
             TestSystemTypeId = source.TestSystemTypeId,
+            SettingsJson = source.SettingsJson,
             Steps = source.Steps.OrderBy(x => x.Order).Select(step => new TestStep
             {
                 Order = step.Order, Name = step.Name, StepType = step.StepType, DeviceKey = step.DeviceKey,

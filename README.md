@@ -1,5 +1,20 @@
 # Testpilot
 
+## Dokumentation auf Deutsch
+
+Die umfassende **[Anwender- und Softwaredokumentation](docs/README.md)** ist der zentrale Einstieg:
+
+| Ziel | Anleitung |
+| --- | --- |
+| Ohne Hardware starten und eine Beispielprüfung ausführen | [Einstieg](docs/01-einstieg.md) |
+| Prüfsystemtypen → Prüfsysteme → Prüfpläne einrichten | [Editorhandbuch](docs/02-editor.md) |
+| Prüfen, Ergebnisse verstehen, Einzelschritt bedienen | [Bedienerhandbuch](docs/03-pruefbetrieb.md) |
+| Konfigurieren, veröffentlichen, sichern und aktualisieren | [Konfiguration und Betrieb](docs/04-konfiguration-und-betrieb.md) |
+| Software verstehen und erweitern | [Architektur](docs/05-architektur.md), [Datenformate](docs/06-datenmodell-und-formate.md), [Optimizer/Sequencer](docs/07-optimizer-und-sequencer.md), [Treiber](docs/08-treiber-und-profile.md), [Entwicklung](docs/09-entwicklung-und-erweiterung.md) |
+| Probleme untersuchen und remote debuggen | [Fehlersuche](docs/10-fehlersuche-und-debugging.md) |
+
+Die folgenden englischen Abschnitte bleiben als ergänzende technische Referenz erhalten.
+
 Test sequencer for electronic assemblies. **Phases 1-6 are implemented; the phase-5 drivers still need verification on real hardware.**
 The driver layer includes simulations, a SEGGER J-Flash CLI adapter, R&S HMP and Agilent 34980A SCPI adapters (raw TCP or VISA),
 a generic VISA instrument, SensoPart (TCP) and Datalogic Matrix 120/200 (serial) code readers, and safe scaffolds for the
@@ -7,10 +22,12 @@ native DLLs; working native DLL drivers remain to be implemented.
 The Blazor application is an Interactive Server plan editor built with MudBlazor. Production runs are started from
 the German WPF operator application `Testpilot.Operator`.
 
-Both applications use a cyan-blue/white visual theme with a yellow striped bottom edge,
-inspired by the legacy test-station UI. Arial Narrow is used when installed, with Arial
-as the fallback; no fonts are downloaded or distributed. Input fields and measurement
-results retain contrasting text, and pass/fail/error indicators keep their semantic colors.
+The editor uses white surfaces with blue headings and cyan accents. Bordered sections and
+separately labelled add/edit forms distinguish existing entries from new input. Navigation and
+overview cards always follow **Prüfsystemtypen → Prüfsysteme → Prüfpläne**. The operator retains
+the legacy cyan-blue/white theme; both applications keep the yellow striped bottom edge.
+Arial Narrow is used when installed, with Arial as the fallback; no fonts are downloaded or
+distributed. Text remains high-contrast, and pass/fail/error indicators keep their semantic colors.
 
 ## Requirements and quick start (Windows / PowerShell)
 
@@ -18,11 +35,12 @@ results retain contrasting text, and pass/fail/error indicators keep their seman
 - The SDK selected by `global.json` is 10.0.403 or a newer .NET 10 feature band.
 - No hardware, database server or global EF tool is required for SQLite.
 
-Open **Testpilot.slnx** in Visual Studio (reopen it if the old empty solution is
-still displayed), then run from the repository root:
+Open **Testpilot.slnx** in Visual Studio; the classic `Testpilot.sln` is also present.
+Run from the repository root (for an isolated hardware-free walkthrough, use the
+[German getting-started guide](docs/01-einstieg.md)):
 
 ```powershell
-dotnet tool restore
+dotnet tool restore --tool-manifest .\dotnet-tools.json
 dotnet restore Testpilot.slnx
 dotnet build Testpilot.slnx
 dotnet test tests\Testpilot.Tests\Testpilot.Tests.csproj
@@ -34,11 +52,11 @@ dotnet run --launch-profile https
 ```
 
 If needed, trust the development certificate with `dotnet dev-certs https --trust`.
-Open `https://localhost:7000`. Set `Testpilot.Editor` as the startup project in
-Visual Studio. The editor offers German pages for plans, test system types and test systems; it never loads
+Set `Testpilot.Editor` as the startup project in
+Visual Studio. The editor offers German pages for test system types, test systems and plans; it never loads
 instrument drivers or connects to hardware.
 
-`--migrate` applies the configured provider's migrations and exits. Normal startup
+`--migrate` applies the configured provider's migrations and exits.
 **does not** modify the schema. Back up production data and review migrations before
 applying them. The default database is `testpilot.db` in the working directory;
 use an absolute connection-string path for deployment. Relative export and log
@@ -52,7 +70,87 @@ function lists, step editing/reordering/deletion, breakpoint flags, channel-use 
 optimizer preview, release/retire, and new-version creation. Editing a released plan
 is disabled. Measurement values and bounds are entered with SI prefixes and German
 decimal commas; stored values remain SI doubles. The editor has no driver or hardware
-project reference. Manual interactive browser review remains outstanding.
+project reference. Navigation, form separation and representative editing workflows have
+been checked in a browser against an isolated SQLite database; this is not a hardware or
+production acceptance test. Detailed workflows are in the [editor manual](docs/02-editor.md).
+
+### Named settings (COM ports, firmware and programmer configuration)
+
+Both `/stations` and `/plans` have **Benannte Einstellungen**: directory, display name, alias,
+data type and value. Add/edit/delete saves immediately after the corresponding button is pressed.
+Aliases are unique within their scope, ignoring case, and consist of ASCII letters, digits and
+underscores (not starting with a digit). Directory and display name do not affect lookup.
+If stored settings contain invalid JSON or fail validation, the settings section displays a German
+error message instead of disconnecting the editor. Its editing controls remain hidden to prevent
+accidental overwrites. Correct the stored data and reload; the failure is also logged.
+
+| Scope | Examples | Reference in JSON string values |
+| --- | --- | --- |
+| Concrete test system | `COMPort_Debug` = `COM9`, `COMPort_Debug_Ref` = `COM3`, `COMPort_Datalogic` = `COM4`; `JFlashExecutablePath`, J-Link `SERIAL_NUMBER_1` | `{{station.COMPort_Debug}}` |
+| Test plan version | `PROGFILE_PATH_1`, `PROJFILE_PATH_1`, `START_ADDRESS_1` | `{{plan.PROGFILE_PATH_1}}` |
+
+Use **Text** for COM ports, paths, hardware serial numbers (leading zeros matter) and hexadecimal
+addresses such as `0x8000000`. **Ja/Nein** accepts `true`/`false`; **Ganzzahl** accepts signed 64-bit
+integers; **Zahl** accepts finite numbers with an invariant decimal point. Legacy text `No` may be
+stored as Text, but is not a Boolean value.
+
+Example: on the test system create `COMPort_Datalogic` with value `COM4`, then use these connection
+parameters for its Matrix 200 device (model and device key are still configured normally):
+
+```json
+{"model":"Matrix200","portName":"{{station.COMPort_Datalogic}}"}
+```
+
+The automatic serial-number reader resolves these station aliases too. DUT/reference COM-port
+aliases can likewise be passed explicitly to an `External` or `CustomCode` step; a named port alone
+does not implement a DUT communication protocol or open the port.
+
+For J-Flash, create the executable-path setting on the station and firmware/project settings on the
+plan version. Configure the station's J-Link device, for example:
+
+```json
+{
+  "executablePath": "{{station.JFlashExecutablePath}}",
+  "arguments": ["-openprj", "{{plan.PROJFILE_PATH_1}}", "-open", "{{imagePath}}", "-program", "-exit"],
+  "timeoutSeconds": 600
+}
+```
+
+Its **Program** step uses `{"filePath":"{{plan.PROGFILE_PATH_1}}"}`. This leaves `{{imagePath}}` to the
+existing programmer driver. Verify the actual argument syntax against the installed J-Flash version
+before use. Legacy aliases such as `HIDE_EXE`, `START_ADDRESS_1`, `SERIAL_NUMBER_1` and
+`ERRORFILE_PATH_1` do **not** automatically select CLI flags: reference their values explicitly in the
+appropriate arguments/options of the existing driver or custom step. The sequencer already writes a
+separate trace file per run; avoid a shared error-file path that concurrent stations would overwrite.
+
+Resolution is JSON-aware (not raw text substitution), works in nested arrays/objects, and never
+changes property names. A string consisting solely of a reference becomes its declared JSON type;
+inside a longer string its value is formatted invariantly. Scope names `plan` and `station` are
+lowercase. Values cannot reference other settings. Numeric measurement/channel/limit parameters
+remain literal: the optimizer must know them at release. Settings are configuration, **not a secret
+store**; do not enter credentials.
+
+Plan settings are copied into the frozen execution plan on release. Editing them requires a new
+version, which inherits the previous settings; a stale preview cannot be released. Paths are frozen,
+not file contents: use versioned, immutable firmware/project files. Station settings remain editable,
+are copied when duplicating a test system and are included as `settingsJson` in its YAML export.
+Restart the operator after changing station settings, especially the fixture/automatic scanner ports,
+since those devices are configured at startup. A new order preparation reads the current station values.
+Missing/invalid settings fail explicitly during preview (plan aliases) or preparation/startup
+(station aliases), before hardware access, including in simulation. The same prepared snapshot is
+used for the entire run.
+
+`--seed-system-types` also adds the ten supplied legacy settings to **PS05-1**, including COM9
+(DUT), COM3 (reference), COM4 (Datalogic), J-Flash V612f and J-Link serial 850102034. Existing aliases
+are preserved case-insensitively; other stations are not changed. The original text values are kept,
+including `HIDE_EXE = No`. Firmware, project, start-address and error-file settings are initially
+stored on PS05-1 because the corresponding plan has not been supplied yet. Move the plan-specific
+values into that plan version when creating it; the seed does not infer ArtNr/Fz from directory names,
+create a plan, change device connections or execute the flasher.
+
+After updating, back up the database and run `dotnet run -- --migrate` from `src\Testpilot.Editor`.
+The `NamedSettings` migrations for SQLite, SQL Server and PostgreSQL add settings with empty-list
+defaults; existing systems, plans and released execution snapshots remain compatible.
 
 ### Test system types (Prüfsystemtypen), test systems (Prüfsysteme) and the device catalog
 
@@ -67,11 +165,7 @@ than PS04. Plans of a type may only use the devices of that type. The setup is e
    (`StationSeed`): the PS05 devices whose device key is still missing (existing devices are kept unchanged)
    and the test system PS05-1
    (only if no system of that name exists), see "PS05-1" below.
-2. **Prüfplan**: selects a test system type. The step editor then only offers the devices of that
-   type (filtered by the capability the step type needs) and their channels and functions. The plan
-   page also shows on which test systems of the type the plan can run and which devices are
-   missing on the others.
-3. **Prüfsystem** (`Station`, page `/stations`): a concrete system such as `PS04-3`. It belongs to a
+2. **Prüfsystem** (`Station`, page `/stations`): a concrete system such as `PS04-3`. It belongs to a
    type and lists the devices of the type that are installed there, each with driver and address
    (VISA resource such as `GPIB0::9::INSTR`, IP address, COM port). A device of the type without
    an entry counts as "not installed" — like the device flags in the legacy `hardware.ini` of PS04.
@@ -79,6 +173,10 @@ than PS04. Plans of a type may only use the devices of that type. The setup is e
    addresses from another system of the same type. **Duplizieren** copies the selected system with
    all devices, drivers and addresses under the next free name (`PS04-1` -> `PS04-2`, used names are
    skipped); check the addresses of the copy afterwards or override them per PC with `devices.json`.
+3. **Prüfplan**: selects a test system type. The step editor then only offers the devices of that
+   type (filtered by the capability the step type needs) and their channels and functions. The plan
+   page also shows on which test systems of the type the plan can run and which devices are
+   missing on the others.
 
 The test PC only names its system in its local configuration (`Operator:Station`, for example
 `PS04-3`). At startup the operator application reads type, devices, drivers and addresses from the
@@ -302,9 +400,8 @@ a vulnerable version brought in by the SQL Server client.
 
 Initial migrations and model snapshots are present separately under
 `src\Testpilot.Data\Migrations\Sqlite`, `SqlServer` and `PostgreSql`.
-Keep all three in source control. The initially empty workspace was initialized as
-a local Git repository so phase 1 and its migrations can be checked in together.
-No remote repository is configured or contacted.
+Keep all three in source control. Migration, backup and deployment procedures are
+described in [configuration and operations](docs/04-konfiguration-und-betrieb.md).
 
 From the repository root, an alternative to the host migration command is:
 
@@ -475,22 +572,25 @@ the SAP mock is used.
 
 - **Operator flow (without `--plan`)**: FAUF -> SAP order (article/FZ) -> the released plan for
   this article/FZ. With the mock, list the orders under `Sap:MockOrders`, for example
-  `$env:Sap__MockOrders__FAUF-123__ArtNr = '4711'` and `$env:Sap__MockOrders__FAUF-123__Fz = 'A'`.
+  `${env:Sap__MockOrders__FAUF-123__ArtNr} = '4711'` and `${env:Sap__MockOrders__FAUF-123__Fz} = 'A'`.
 - **Selected plan (`--plan <GUID>`)**: runs exactly this released plan; the SAP order must belong
   to its article/FZ. The mock accepts any FAUF for the selected plan.
 
 ```powershell
 dotnet run --project tools\Testpilot.RunPlan -- --station "Bench 1" --fauf FAUF-123 --serial 1234567890
-dotnet run --project tools\Testpilot.RunPlan -- --plan <GUID> --station "Bench 1" --fauf FAUF-123 --serial SN-123 --operator WSE --single-step
+# Optional: replace this value with the GUID of a released plan.
+$planId = 'GUID-of-released-plan'
+dotnet run --project tools\Testpilot.RunPlan -- --plan $planId --station "Bench 1" --fauf FAUF-123 --serial SN-123 --operator WSE --single-step
 ```
 
-The preparation (`RunPreparation` in `Testpilot.Sequencer`) is UI-independent and will be used
-unchanged by the operator UI of phase 6.
+The preparation (`RunPreparation` in `Testpilot.Sequencer`) is UI-independent and shared by
+RunPlan and the WPF operator application.
 
-The host defaults to simulation and safely maps the channels used by the frozen plan
-onto simulated profiles. `Simulation:Enabled=false` selects the drivers stored in the
-execution snapshot; `SeggerJFlashCli`, `HmpScpi`, `Ag34980Scpi`, `VisaGeneric`,
-`SensopartTcp`, `DatalogicMatrixSerial`, `HmpDll`, and `Ag34980Dll` are registered in this mode.
+The host defaults to simulation and maps the channels used by the plan onto simulated
+profiles. Simulation does not sandbox `External`, `CustomCode` or SAP access.
+`Simulation:Enabled=false` uses the station-bound drivers for model-based plans;
+legacy plans retain the fixed drivers/connections in their execution snapshot. Both hosts
+use the driver set registered by `StandardDrivers.AddAllDrivers()`.
 Native DLL drivers are scaffold-only and fail explicitly before any library is loaded. Each host process writes a separate
 `logs\run-*.log` file. The database must already be migrated.
 

@@ -1,0 +1,156 @@
+@using System.Text.Json
+@inject ILogger<NamedSettingsEditor> Logger
+
+<section class="editor-section" aria-label="Benannte Einstellungen">
+    <MudText Typo="Typo.h6">Benannte Einstellungen</MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">
+        Verzeichnis und Name dienen der Anzeige. Verwende den Alias in Textwerten der Schritt- oder Verbindungsparameter,
+        z. B. <code>@($"{{{{{Scope}.COMPort_Debug}}}}")</code>. Zahlen mit Dezimalpunkt; keine Passwörter oder Zugangsdaten eintragen.
+        @if (Scope == "plan")
+        {
+            <span>Diese Werte gehören zur Planversion und werden bei der Freigabe eingefroren.</span>
+        }
+        else
+        {
+            <span>Diese Werte gelten nur für dieses Prüfsystem, z. B. COM-Ports und lokale Programmpfade.</span>
+        }
+    </MudText>
+    @if (error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Dense="true" Class="my-2">@error</MudAlert>
+    }
+    @if (!loadFailed)
+    {
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Vorhandene Einstellungen</MudText>
+        <MudTable Items="settings" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Verzeichnis</MudTh><MudTh>Name</MudTh><MudTh>Alias / Referenz</MudTh><MudTh>Datentyp</MudTh><MudTh>Wert</MudTh><MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Verzeichnis">@context.Directory</MudTd>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Alias / Referenz"><code>@($"{{{{{Scope}.{context.Alias}}}}}")</code></MudTd>
+                <MudTd DataLabel="Datentyp">@TypeText(context.DataType)</MudTd>
+                <MudTd DataLabel="Wert" Style="overflow-wrap:anywhere;white-space:pre-wrap">@context.Value</MudTd>
+                <MudTd>
+                    @if (!ReadOnly)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" title="Einstellung bearbeiten" Disabled="Busy" OnClick="() => Edit(context)" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" title="Einstellung löschen" Disabled="Busy" OnClick="() => RemoveAsync(context)" />
+                    }
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent><MudText>Keine Einstellungen angelegt.</MudText></NoRecordsContent>
+        </MudTable>
+        @if (!ReadOnly)
+        {
+            <section class="editor-form" aria-label="Einstellung eingeben">
+                <MudText Typo="Typo.h6">@(editingAlias is null ? "Neue Einstellung hinzufügen" : "Einstellung bearbeiten")</MudText>
+                <MudGrid Spacing="2" Class="mt-1">
+                    <MudItem xs="12" sm="6"><MudTextField Label="Verzeichnis (z. B. Kommunikation » Debug)" @bind-Value="directory" Disabled="Busy" /></MudItem>
+                    <MudItem xs="12" sm="6"><MudTextField Label="Name (z. B. COM-Port DUT)" @bind-Value="name" Disabled="Busy" /></MudItem>
+                    <MudItem xs="12" sm="4"><MudTextField Label="Alias (z. B. COMPort_Debug)" @bind-Value="alias" Disabled="Busy" /></MudItem>
+                    <MudItem xs="12" sm="3">
+                        <MudSelect T="SettingDataType" Label="Datentyp" @bind-Value="dataType" Disabled="Busy">
+                            @foreach (var value in Enum.GetValues<SettingDataType>())
+                            {
+                                <MudSelectItem Value="@value">@TypeText(value)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="5"><MudTextField Label="Wert" @bind-Value="valueText" Disabled="Busy" HelperText="@(dataType == SettingDataType.Boolean ? "true = Ja, false = Nein" : null)" /></MudItem>
+                </MudGrid>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ApplyAsync" Disabled="Busy" Class="mt-2">@(editingAlias is null ? "Einstellung hinzufügen" : "Änderung speichern")</MudButton>
+                <MudButton Variant="Variant.Text" OnClick="ResetForm" Disabled="Busy" Class="mt-2 ml-2">Eingabe leeren</MudButton>
+            </section>
+        }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string SettingsJson { get; set; } = "[]";
+    [Parameter, EditorRequired] public string Scope { get; set; } = "station";
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<string> OnSave { get; set; }
+
+    private string? loadedJson;
+    private List<NamedSetting> settings = [];
+    private string directory = "";
+    private string name = "";
+    private string alias = "";
+    private string valueText = "";
+    private string? editingAlias;
+    private SettingDataType dataType;
+    private string? error;
+    private bool loadFailed;
+
+    protected override void OnParametersSet()
+    {
+        if (loadedJson == SettingsJson) return;
+        loadedJson = SettingsJson;
+        ResetForm();
+        settings.Clear();
+        loadFailed = false;
+        try
+        {
+            settings = NamedSettings.Deserialize(SettingsJson).ToList();
+        }
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
+        {
+            loadFailed = true;
+            var detail = exception is JsonException ? "Das gespeicherte JSON ist ungültig." : exception.Message;
+            error = $"Die benannten Einstellungen konnten nicht geladen werden: {detail} Die gespeicherten Daten bleiben unverändert. Bitte die Daten korrigieren lassen und neu laden.";
+            Logger.LogWarning(exception, "Could not load named settings for scope {Scope}.", Scope);
+        }
+    }
+
+    private void Edit(NamedSetting setting)
+    {
+        editingAlias = setting.Alias;
+        directory = setting.Directory;
+        name = setting.Name;
+        alias = setting.Alias;
+        valueText = setting.Value;
+        dataType = setting.DataType;
+        error = null;
+    }
+
+    private Task RemoveAsync(NamedSetting setting) =>
+        OnSave.InvokeAsync(NamedSettings.Serialize(settings.Where(item => item.Alias != setting.Alias)));
+
+    private async Task ApplyAsync()
+    {
+        string json;
+        try
+        {
+            var updated = settings.Where(setting => setting.Alias != editingAlias).ToList();
+            updated.Add(new NamedSetting(directory.Trim(), name.Trim(), alias.Trim(), dataType, valueText));
+            json = NamedSettings.Serialize(updated);
+        }
+        catch (ArgumentException exception)
+        {
+            error = exception.Message;
+            return;
+        }
+        error = null;
+        await OnSave.InvokeAsync(json);
+    }
+
+    private void ResetForm()
+    {
+        editingAlias = null;
+        directory = name = alias = valueText = "";
+        dataType = SettingDataType.String;
+        error = null;
+    }
+
+    private static string TypeText(SettingDataType type) => type switch
+    {
+        SettingDataType.String => "Text",
+        SettingDataType.Boolean => "Ja/Nein",
+        SettingDataType.Integer => "Ganzzahl",
+        SettingDataType.Number => "Zahl",
+        _ => type.ToString()
+    };
+}

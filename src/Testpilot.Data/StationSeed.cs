@@ -6,8 +6,9 @@ namespace Testpilot.Data;
 /// <summary>
 /// Known equipment of the test system types and the concrete test systems built from it (as specified by the test
 /// department). Like <see cref="TestSystemTypeSeed"/> it only adds what is missing: a device only when the type has no
-/// device with that key, a test system only when no system with that name exists. Existing devices and systems are never
-/// changed or removed. Run <see cref="TestSystemTypeSeed"/> first.
+/// device with that key, a test system only when no system with that name exists. Missing known station settings are
+/// added without overwriting existing aliases. Existing devices and settings are never changed or removed.
+/// Run <see cref="TestSystemTypeSeed"/> first.
 /// </summary>
 public static class StationSeed
 {
@@ -18,6 +19,25 @@ public static class StationSeed
 
     private sealed record TypeDevice(string Key, string Model, string Description, string OptionsJson);
     private sealed record InstalledDevice(string Key, string Driver, string ConnectionParametersJson);
+
+    // Supplied for PS05-1. Firmware/project values stay here until their actual test plan is available.
+    private static readonly NamedSetting[] Ps05Settings =
+    [
+        new("Hardware » Flasher » J-Link", "ERRORFILE_PATH_1", "ERRORFILE_PATH_1", SettingDataType.String,
+            @"\\heka.de\prod\pruefmittel\ATE\PS05\cvi_prog\11005\11005_327041\Firmware\segger1_error.log"),
+        new("Hardware » Flasher » J-Link", "HIDE_EXE", "HIDE_EXE", SettingDataType.String, "No"),
+        new("Hardware » Flasher » J-Link", "JFlashExecutablePath", "JFlashExecutablePath", SettingDataType.String,
+            @"C:\Program Files (x86)\SEGGER\JLink_V612f\JFlash.exe"),
+        new("Hardware » Flasher » J-Link", "PROGFILE_PATH_1", "PROGFILE_PATH_1", SettingDataType.String,
+            @"\\heka.de\prod\pruefmittel\ATE\PS05\cvi_prog\11005\11005_327041\Firmware\FW_FSA_155_F_V01.05.18.bin"),
+        new("Hardware » Flasher » J-Link", "PROJFILE_PATH_1", "PROJFILE_PATH_1", SettingDataType.String,
+            @"\\heka.de\prod\pruefmittel\ATE\PS05\cvi_prog\11005\11005_327041\Firmware\FB_FSA.jflash"),
+        new("Hardware » Flasher » J-Link", "SERIAL_NUMBER_1", "SERIAL_NUMBER_1", SettingDataType.String, "850102034"),
+        new("Hardware » Flasher » J-Link", "START_ADDRESS_1", "START_ADDRESS_1", SettingDataType.String, "0x8000000"),
+        new("Kommunikation » Debug » Debug Interface", "COM-Port DUT", "COMPort_Debug", SettingDataType.String, "COM9"),
+        new("Kommunikation » Debug » Debug Interface", "COM-Port GS", "COMPort_Debug_Ref", SettingDataType.String, "COM3"),
+        new("Kommunikation » Debug » Debug Interface", "COMPort_Datalogic", "COMPort_Datalogic", SettingDataType.String, "COM4")
+    ];
 
     private static readonly Dictionary<string, TypeDevice[]> TypeDevices = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -75,12 +95,25 @@ public static class StationSeed
             db.Stations.Add(new Station
             {
                 Name = name, Description = description, TestSystemTypeId = type.Id,
+                SettingsJson = NamedSettings.Serialize(Ps05Settings),
                 Devices = devices.Select(device => new StationDevice
                 {
                     DeviceKey = device.Key, Driver = device.Driver, ConnectionParametersJson = device.ConnectionParametersJson
                 }).ToList()
             });
             added.Add(name);
+        }
+        var ps05 = await db.Stations.SingleOrDefaultAsync(station => station.Name == "PS05-1", cancellationToken);
+        if (ps05 is not null)
+        {
+            var settings = NamedSettings.Deserialize(ps05.SettingsJson);
+            var aliases = settings.Select(setting => setting.Alias).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missing = Ps05Settings.Where(setting => !aliases.Contains(setting.Alias)).ToArray();
+            if (missing.Length != 0)
+            {
+                ps05.SettingsJson = NamedSettings.Serialize(settings.Concat(missing));
+                added.Add($"PS05-1: {missing.Length} Einstellungen");
+            }
         }
         if (added.Count != 0)
             await db.SaveChangesAsync(cancellationToken);

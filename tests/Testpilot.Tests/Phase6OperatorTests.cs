@@ -72,6 +72,43 @@ public sealed class Phase6OperatorTests
         Assert.Contains("SensopartTcp @ 192.0.2.10", viewModel.SystemConfigurationText, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AutomaticScannerAndFixtureUseStationSettingAliases(bool includePort)
+    {
+        await using var bench = await OperatorBench.CreateAsync(withFixture: true);
+        await using (var context = bench.Database.NewContext())
+        {
+            var station = context.Stations.Single();
+            var values = new List<NamedSetting>
+            {
+                new("Hardware", "Adapter resource", "AdapterResource", SettingDataType.String, "GPIB0::12::INSTR")
+            };
+            if (includePort)
+                values.Add(new("Communication", "Scanner port", "COMPort_Datalogic", SettingDataType.String, "COM4"));
+            station.SettingsJson = NamedSettings.Serialize(values);
+            var fixture = context.StationDevices.Single(device => device.DeviceKey == bench.FixtureKey);
+            fixture.ConnectionParametersJson = """{"resource":"{{station.AdapterResource}}"}""";
+            var reader = context.StationDevices.Single(device => device.DeviceKey == bench.ReaderKey);
+            reader.Driver = "DatalogicMatrixSerial";
+            reader.ConnectionParametersJson = """{"model":"Matrix200","portName":"{{station.COMPort_Datalogic}}"}""";
+            await context.SaveChangesAsync();
+        }
+        var viewModel = await bench.CreateViewModelAsync();
+        if (includePort)
+        {
+            Assert.Null(viewModel.ErrorText);
+            Assert.Contains("Ps05Fixture @ GPIB0::12::INSTR", viewModel.SystemConfigurationText, StringComparison.Ordinal);
+            Assert.Contains("DatalogicMatrixSerial @ COM4", viewModel.SystemConfigurationText, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains("COMPort_Datalogic", viewModel.ErrorText, StringComparison.Ordinal);
+            Assert.False(viewModel.CanEdit);
+        }
+    }
+
     [Fact]
     public async Task StartupShowsAddressesFromDevicesJson()
     {

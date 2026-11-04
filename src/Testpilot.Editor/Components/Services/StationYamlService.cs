@@ -26,6 +26,7 @@ public sealed class StationYamlService
             Name = station.Name,
             SystemType = systemTypeName,
             Description = string.IsNullOrWhiteSpace(station.Description) ? null : station.Description,
+            SettingsJson = station.SettingsJson,
             Devices = station.Devices.OrderBy(device => device.DeviceKey, StringComparer.Ordinal)
                 .Select(device => new DeviceDocument
                 {
@@ -55,7 +56,8 @@ public sealed class StationYamlService
         if (document.Devices is null)
             throw new InvalidDataException("Die Geräteliste darf nicht null sein.");
 
-        var station = new Station { Name = document.Name.Trim(), Description = document.Description?.Trim() ?? "" };
+        _ = NamedSettings.Deserialize(document.SettingsJson);
+        var station = new Station { Name = document.Name.Trim(), Description = document.Description?.Trim() ?? "", SettingsJson = document.SettingsJson };
         TestSystemType? type = null;
         if (!string.IsNullOrWhiteSpace(document.SystemType))
         {
@@ -95,6 +97,7 @@ public sealed class StationYamlService
         public string Name { get; set; } = "";
         public string? SystemType { get; set; }
         public string? Description { get; set; }
+        public string SettingsJson { get; set; } = "[]";
         public List<DeviceDocument> Devices { get; set; } = [];
     }
 

@@ -17,15 +17,16 @@
     }
     <MudGrid Spacing="3">
         <MudItem xs="12" md="4">
-            <MudPaper Class="pa-4">
-                <MudText Typo="Typo.h6">Prüfsystemtyp anlegen</MudText>
+            <MudPaper Class="editor-section editor-form" Elevation="0">
+                <MudText Typo="Typo.h6">Neuen Prüfsystemtyp anlegen</MudText>
                 <MudTextField Label="Name (z. B. PS04)" @bind-Value="newSystemName" Class="mt-2" />
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateSystemAsync" Disabled="busy" Class="mt-3">Anlegen</MudButton>
                 <MudButton Variant="Variant.Outlined" OnClick="SeedSystemsAsync" Disabled="busy" Class="mt-3 ml-2"
                            title="Legt die bekannten Prüfsystemtypen PS01 bis PS31 an, soweit sie noch fehlen, dazu die bekannte Ausstattung (PS05-Geräte, Prüfsystem PS05-1). Vorhandene Typen, Geräte und Prüfsysteme bleiben unverändert.">
                     Standardtypen anlegen
                 </MudButton>
-                <MudDivider Class="my-4" />
+            </MudPaper>
+            <MudPaper Class="editor-section" Elevation="0">
                 <MudText Typo="Typo.h6">Vorhandene Prüfsystemtypen</MudText>
                 @if (systems.Count == 0)
                 {
@@ -68,56 +69,56 @@
                         <MudText Typo="Typo.body2" Class="mt-2">Prüfsysteme dieses Typs: @string.Join(", ", stationNames)</MudText>
                     }
 
-                    <MudDivider Class="my-4" />
-                    <MudText Typo="Typo.h6">@(editingDeviceId.HasValue ? "Gerät bearbeiten" : "Gerät hinzufügen")</MudText>
-                    <MudGrid Spacing="2" Class="mt-1">
-                        <MudItem xs="12" sm="4"><MudTextField Label="Gerätekennung (z. B. Ag34980A)" @bind-Value="deviceKey" /></MudItem>
-                        <MudItem xs="12" sm="4">
-                            <MudSelect T="string" Label="Gerätemodell" Value="modelName" ValueChanged="ModelChanged">
-                                @foreach (var model in DeviceCatalog.Models)
-                                {
-                                    <MudSelectItem Value="@model.Name">@model.Name — @model.Description</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        <MudItem xs="12" sm="4"><MudTextField Label="Bezeichnung (optional)" @bind-Value="deviceDescription" /></MudItem>
-                        @if (SelectedModel?.ModuleSlotCount > 0)
-                        {
-                            @for (var slot = 1; slot <= SelectedModel.ModuleSlotCount; slot++)
+                    <section class="editor-form my-6" aria-label="Gerät des Prüfsystemtyps eingeben">
+                        <MudText Typo="Typo.h6">@(editingDeviceId.HasValue ? "Gerät bearbeiten" : "Neues Gerät hinzufügen")</MudText>
+                        <MudGrid Spacing="2" Class="mt-1">
+                            <MudItem xs="12" sm="4"><MudTextField Label="Gerätekennung (z. B. Ag34980A)" @bind-Value="deviceKey" /></MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudSelect T="string" Label="Gerätemodell" Value="modelName" ValueChanged="ModelChanged">
+                                    @foreach (var model in DeviceCatalog.Models)
+                                    {
+                                        <MudSelectItem Value="@model.Name">@model.Name — @model.Description</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="4"><MudTextField Label="Bezeichnung (optional)" @bind-Value="deviceDescription" /></MudItem>
+                            @if (SelectedModel?.ModuleSlotCount > 0)
                             {
-                                var slotNumber = slot;
-                                <MudItem xs="6" sm="3">
-                                    <MudSelect T="string" Label="@($"Slot {slotNumber}")" Value="SlotModule(slotNumber)"
-                                               ValueChanged="value => slotModules[slotNumber] = value">
-                                        <MudSelectItem Value="@("")">leer</MudSelectItem>
-                                        @foreach (var module in SelectedModel.Modules ?? [])
-                                        {
-                                            <MudSelectItem Value="@module">@module</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudItem>
+                                @for (var slot = 1; slot <= SelectedModel.ModuleSlotCount; slot++)
+                                {
+                                    var slotNumber = slot;
+                                    <MudItem xs="6" sm="3">
+                                        <MudSelect T="string" Label="@($"Slot {slotNumber}")" Value="SlotModule(slotNumber)"
+                                                   ValueChanged="value => slotModules[slotNumber] = value">
+                                            <MudSelectItem Value="@("")">leer</MudSelectItem>
+                                            @foreach (var module in SelectedModel.Modules ?? [])
+                                            {
+                                                <MudSelectItem Value="@module">@module</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                }
                             }
-                        }
-                        @if (SelectedModel?.ChannelsFromOptions == true)
+                            @if (SelectedModel?.ChannelsFromOptions == true)
+                            {
+                                <MudItem xs="12"><MudTextField Label="Kanäle (durch Komma getrennt, z. B. 1003, 1004)" @bind-Value="channelsText" /></MudItem>
+                            }
+                        </MudGrid>
+                        @if (editingDeviceId.HasValue)
                         {
-                            <MudItem xs="12"><MudTextField Label="Kanäle (durch Komma getrennt, z. B. 1003, 1004)" @bind-Value="channelsText" /></MudItem>
+                            <MudText Typo="Typo.caption" Class="d-block mt-1">
+                                Wird das Gerät von Prüfplänen oder Prüfsystemen verwendet, kann die Gerätekennung nicht geändert werden.
+                                Modell und Ausstattung sind gesperrt, solange freigegebene Prüfpläne das Gerät verwenden.
+                            </MudText>
                         }
-                    </MudGrid>
-                    @if (editingDeviceId.HasValue)
-                    {
-                        <MudText Typo="Typo.caption" Class="d-block mt-1">
-                            Wird das Gerät von Prüfplänen oder Prüfsystemen verwendet, kann die Gerätekennung nicht geändert werden.
-                            Modell und Ausstattung sind gesperrt, solange freigegebene Prüfpläne das Gerät verwenden.
-                        </MudText>
-                    }
-                    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDeviceAsync" Disabled="busy" Class="mt-2">@(editingDeviceId.HasValue ? "Gerät speichern" : "Gerät hinzufügen")</MudButton>
-                    @if (editingDeviceId.HasValue)
-                    {
-                        <MudButton Variant="Variant.Text" OnClick="CancelDeviceEdit" Class="mt-2 ml-2">Abbrechen</MudButton>
-                    }
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDeviceAsync" Disabled="busy" Class="mt-2">@(editingDeviceId.HasValue ? "Gerät speichern" : "Gerät hinzufügen")</MudButton>
+                        @if (editingDeviceId.HasValue)
+                        {
+                            <MudButton Variant="Variant.Text" OnClick="CancelDeviceEdit" Class="mt-2 ml-2">Abbrechen</MudButton>
+                        }
+                    </section>
 
-                    <MudDivider Class="my-4" />
-                    <MudText Typo="Typo.h6">Geräte des Prüfsystemtyps</MudText>
+                    <MudText Typo="Typo.h6">Vorhandene Geräte des Prüfsystemtyps</MudText>
                     <MudText Typo="Typo.body2">
                         Alle Geräte, die in einem System dieses Typs eingebaut sein können. Ist ein Gerät nur in einzelnen Systemen
                         vorhanden, wird es bei den anderen Prüfsystemen einfach nicht zugeordnet.

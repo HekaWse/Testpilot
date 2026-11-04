@@ -25,7 +25,7 @@ public static partial class StationCopy
     /// <summary>Creates a new station with new ids; <paramref name="source"/> must include its devices.</summary>
     public static Station Copy(Station source, string name, Guid? testSystemTypeId)
     {
-        var copy = new Station { Name = name, Description = source.Description, TestSystemTypeId = testSystemTypeId };
+        var copy = new Station { Name = name, Description = source.Description, TestSystemTypeId = testSystemTypeId, SettingsJson = source.SettingsJson };
         foreach (var device in source.Devices.OrderBy(device => device.DeviceKey, StringComparer.Ordinal))
             copy.Devices.Add(new StationDevice
             {

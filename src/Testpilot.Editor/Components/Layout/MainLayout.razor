@@ -1,6 +1,6 @@
 ﻿@inherits LayoutComponentBase
 
-<MudThemeProvider Theme="theme" IsDarkMode="true" />
+<MudThemeProvider Theme="theme" IsDarkMode="false" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -9,9 +9,9 @@
         <MudText Typo="Typo.h6" Class="ms-2">Testpilot — Prüfplaneditor</MudText>
         <MudSpacer />
         <MudButton Href="/" Color="Color.Inherit" Variant="Variant.Text">Übersicht</MudButton>
-        <MudButton Href="/plans" Color="Color.Inherit" Variant="Variant.Text">Prüfpläne</MudButton>
         <MudButton Href="/system-types" Color="Color.Inherit" Variant="Variant.Text">Prüfsystemtypen</MudButton>
         <MudButton Href="/stations" Color="Color.Inherit" Variant="Variant.Text">Prüfsysteme</MudButton>
+        <MudButton Href="/plans" Color="Color.Inherit" Variant="Variant.Text">Prüfpläne</MudButton>
         <MudButton Href="/debug-users" Color="Color.Inherit" Variant="Variant.Text">Debug-Berechtigungen</MudButton>
     </MudAppBar>
     <MudMainContent Class="pa-6 testpilot-content">
@@ -31,27 +31,35 @@
 
     private readonly MudTheme theme = new()
     {
-        PaletteDark = new PaletteDark
+        PaletteLight = new PaletteLight
         {
-            Primary = "#FFFFFF",
-            PrimaryContrastText = "#006B8A",
-            Secondary = "#FFE000",
-            SecondaryContrastText = "#143340",
-            Background = "#00A7D1",
-            BackgroundGray = "#0097BF",
-            Surface = "#007FA5",
-            AppbarBackground = "#00A7D1",
-            AppbarText = "#FFFFFF",
-            TextPrimary = "#FFFFFF",
-            TextSecondary = "#FFFFFF",
-            TextDisabled = "#C2DEE6",
-            ActionDefault = "#FFFFFF",
-            ActionDisabled = "#C2DEE6",
-            ActionDisabledBackground = "#337E94",
-            Divider = "#73CEE5",
-            DividerLight = "#73CEE5",
-            TableLines = "#73CEE5",
-            TableHover = "#006B8A"
+            Primary = "#006B8A",
+            PrimaryContrastText = "#FFFFFF",
+            Secondary = "#007A9E",
+            SecondaryContrastText = "#FFFFFF",
+            Info = "#006B8A",
+            InfoContrastText = "#FFFFFF",
+            Success = "#23723B",
+            SuccessContrastText = "#FFFFFF",
+            Warning = "#8A5700",
+            WarningContrastText = "#FFFFFF",
+            Error = "#B42318",
+            ErrorContrastText = "#FFFFFF",
+            Background = "#FFFFFF",
+            BackgroundGray = "#F4F7F9",
+            Surface = "#FFFFFF",
+            AppbarBackground = "#FFFFFF",
+            AppbarText = "#006B8A",
+            TextPrimary = "#143340",
+            TextSecondary = "#46616D",
+            TextDisabled = "#667C86",
+            ActionDefault = "#006B8A",
+            ActionDisabled = "#667C86",
+            ActionDisabledBackground = "#E8EFF2",
+            Divider = "#C5D8E0",
+            DividerLight = "#E3EDF1",
+            TableLines = "#C5D8E0",
+            TableHover = "#F0F7FA"
         },
         Typography = new Typography
         {

@@ -17,10 +17,19 @@ public sealed class ExecutionPlanOptimizer
         if (plan.Steps.Count == 0)
             throw new ArgumentException("A plan must contain at least one step.", nameof(plan));
 
+        var settings = NamedSettings.Deserialize(plan.SettingsJson);
+        var resolver = new NamedSettingsResolver(settings, []);
         var orderedSteps = plan.Steps.OrderBy(step => step.Order).ToArray();
         for (var index = 0; index < orderedSteps.Length; index++)
         {
-            StepParameters.Validate(orderedSteps[index]);
+            var step = orderedSteps[index];
+            StepParameters.Validate(step);
+            StepParameters.Validate(new TestStep
+            {
+                Order = step.Order, Name = step.Name, StepType = step.StepType, DeviceKey = step.DeviceKey,
+                ParametersJson = resolver.ResolveJson(step.ParametersJson, deferStation: true),
+                LimitLow = step.LimitLow, LimitHigh = step.LimitHigh, Unit = step.Unit
+            });
             if (orderedSteps[index].Order != index)
                 throw new ArgumentException("Step order must be contiguous and start at zero.", nameof(plan));
         }
@@ -137,7 +146,7 @@ public sealed class ExecutionPlanOptimizer
             .ToArray();
         return new(plan.Id, plan.Version, plan.ArtNr, plan.Fz, executionDevices,
             new(initialConfigurations), executionSteps,
-            new(safeStateOrder, usedKeys.Reverse().ToArray()));
+            new(safeStateOrder, usedKeys.Reverse().ToArray())) { Settings = settings };
     }
 
     /// <summary>Profile command name for configuring a measurement channel.</summary>

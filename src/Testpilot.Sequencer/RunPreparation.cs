@@ -124,6 +124,7 @@ public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapCl
         {
             Devices = plan.Devices.Select(device => Bind(device, stationDevices[device.DeviceKey], station.Name, systemDevices)).ToArray()
         };
+        boundPlan = ExecutionPlanSettings.Resolve(boundPlan, NamedSettings.Deserialize(station.SettingsJson));
         var runPlan = simulationEnabled ? SimulatedDriverMapping.Apply(boundPlan) : boundPlan;
         // Creating every driver profile validates all connection parameters before any device is touched.
         var definitions = runPlan.Devices.ToDictionary(device => device.DeviceKey, device =>
@@ -316,6 +317,7 @@ internal static class SimulatedDriverMapping
     public static TestPlan ToTestPlan(ExecutionPlan plan) => new()
     {
         Id = plan.PlanId, ArtNr = plan.ArtNr, Fz = plan.Fz, Version = plan.PlanVersion,
+        SettingsJson = NamedSettings.Serialize(plan.Settings),
         Steps = plan.Steps.Select(step => new TestStep
         {
             Order = step.Order, Name = step.Name, StepType = step.StepType, DeviceKey = step.DeviceKey,

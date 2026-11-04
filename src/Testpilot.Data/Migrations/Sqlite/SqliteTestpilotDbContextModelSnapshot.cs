@@ -218,6 +218,12 @@ namespace Testpilot.Data.Migrations.Sqlite
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("[]");
+
                     b.Property<Guid?>("TestSystemTypeId")
                         .HasColumnType("TEXT");
 
@@ -319,6 +325,12 @@ namespace Testpilot.Data.Migrations.Sqlite
 
                     b.Property<DateTimeOffset?>("ReleasedAt")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("[]");
 
                     b.Property<int>("Status")
                         .IsConcurrencyToken()

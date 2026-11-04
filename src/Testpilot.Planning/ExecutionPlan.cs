@@ -30,4 +30,7 @@ public sealed record ExecutionCleanupPhase(IReadOnlyList<string> SafeStateDevice
     IReadOnlyList<string> DisconnectDeviceKeys);
 public sealed record ExecutionPlan(Guid PlanId, int PlanVersion, string ArtNr, string Fz,
     IReadOnlyList<ExecutionDevice> Devices, ExecutionInitPhase Init, IReadOnlyList<ExecutionStep> Steps,
-    ExecutionCleanupPhase Cleanup);
+    ExecutionCleanupPhase Cleanup)
+{
+    public IReadOnlyList<NamedSetting> Settings { get; init; } = [];
+}

@@ -18,8 +18,8 @@
     }
     <MudGrid Spacing="3">
         <MudItem xs="12" md="3">
-            <MudPaper Class="pa-4">
-                <MudText Typo="Typo.h6">Prüfsystem anlegen</MudText>
+            <MudPaper Class="editor-section editor-form" Elevation="0">
+                <MudText Typo="Typo.h6">Neues Prüfsystem anlegen</MudText>
                 <MudTextField Label="Name (z. B. PS04-3)" @bind-Value="newStationName" Required="true" Class="mt-2" />
                 <MudSelect T="Guid?" Label="Prüfsystemtyp" Value="newStationTypeId" ValueChanged="NewStationTypeChanged" Clearable="true" Class="mt-2">
                     @foreach (var type in types)
@@ -37,7 +37,8 @@
                     </MudSelect>
                 }
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateStationAsync" Disabled="busy" Class="mt-3">Anlegen</MudButton>
-                <MudDivider Class="my-4" />
+            </MudPaper>
+            <MudPaper Class="editor-section" Elevation="0">
                 <MudText Typo="Typo.h6">Vorhandene Prüfsysteme</MudText>
                 @if (stations.Count == 0)
                 {
@@ -120,6 +121,9 @@
                         </MudAlert>
                     }
 
+                    <MudDivider Class="my-4" />
+                    <NamedSettingsEditor @key="selectedStation.Id" SettingsJson="@selectedStation.SettingsJson" Scope="station"
+                                         Busy="busy" OnSave="SaveSettingsAsync" />
                     <MudDivider Class="my-4" />
                     <MudText Typo="Typo.h6">Geräte und Adressen</MudText>
                     @if (selectedType is not null)
@@ -208,47 +212,49 @@
                         </MudTable>
                     }
 
-                    <MudDivider Class="my-4" />
-                    <MudText Typo="Typo.h6">@(editingDeviceId.HasValue ? $"Gerät '{deviceKey}' bearbeiten" : "Gerät zuordnen")</MudText>
-                    <MudGrid Spacing="2" Class="mt-1">
-                        <MudItem xs="12" sm="3">
-                            @if (selectedType is null)
-                            {
-                                <MudTextField Label="Gerätekennung" @bind-Value="deviceKey" Disabled="editingDeviceId.HasValue" />
-                            }
-                            else
-                            {
-                                <MudSelect T="string" Label="Gerät des Typs" Value="deviceKey" ValueChanged="DeviceKeyChanged" Disabled="editingDeviceId.HasValue">
-                                    @foreach (var device in selectedType.Devices.OrderBy(item => item.DeviceKey, StringComparer.Ordinal))
+                    <section class="editor-form mt-6" aria-label="Gerät und Adresse eingeben">
+                        <MudText Typo="Typo.h6">@(editingDeviceId.HasValue ? $"Gerät '{deviceKey}' bearbeiten" : "Neues Gerät zuordnen")</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">Hier werden Treiber und Adresse für die neue Zuordnung oder das ausgewählte Gerät eingegeben.</MudText>
+                        <MudGrid Spacing="2" Class="mt-1">
+                            <MudItem xs="12" sm="3">
+                                @if (selectedType is null)
+                                {
+                                    <MudTextField Label="Gerätekennung" @bind-Value="deviceKey" Disabled="editingDeviceId.HasValue" />
+                                }
+                                else
+                                {
+                                    <MudSelect T="string" Label="Gerät des Typs" Value="deviceKey" ValueChanged="DeviceKeyChanged" Disabled="editingDeviceId.HasValue">
+                                        @foreach (var device in selectedType.Devices.OrderBy(item => item.DeviceKey, StringComparer.Ordinal))
+                                        {
+                                            <MudSelectItem Value="@device.DeviceKey">@device.DeviceKey — @device.Model</MudSelectItem>
+                                        }
+                                    </MudSelect>
+                                }
+                            </MudItem>
+                            <MudItem xs="12" sm="3">
+                                <MudSelect T="string" Label="Treiber" Value="driver" ValueChanged="DriverChanged">
+                                    @foreach (var item in DriverChoices())
                                     {
-                                        <MudSelectItem Value="@device.DeviceKey">@device.DeviceKey — @device.Model</MudSelectItem>
+                                        <MudSelectItem Value="@item">@item</MudSelectItem>
                                     }
                                 </MudSelect>
-                            }
-                        </MudItem>
-                        <MudItem xs="12" sm="3">
-                            <MudSelect T="string" Label="Treiber" Value="driver" ValueChanged="DriverChanged">
-                                @foreach (var item in DriverChoices())
-                                {
-                                    <MudSelectItem Value="@item">@item</MudSelectItem>
-                                }
-                            </MudSelect>
-                        </MudItem>
-                        @if (ConnectionAddress.VisaDrivers.Contains(driver))
-                        {
-                            <MudItem xs="12" sm="3">
-                                <MudTextField Label="VISA-Ressource" @bind-Value="resourceText" Placeholder="z. B. GPIB0::9::INSTR" />
                             </MudItem>
+                            @if (ConnectionAddress.VisaDrivers.Contains(driver))
+                            {
+                                <MudItem xs="12" sm="3">
+                                    <MudTextField Label="VISA-Ressource" @bind-Value="resourceText" Placeholder="z. B. GPIB0::9::INSTR" />
+                                </MudItem>
+                            }
+                            <MudItem xs="12" sm="@(ConnectionAddress.VisaDrivers.Contains(driver) ? 3 : 6)">
+                                <MudTextField Label="Weitere Verbindungsparameter (JSON-Objekt)" @bind-Value="connectionJson" />
+                            </MudItem>
+                        </MudGrid>
+                        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDeviceAsync" Disabled="busy" Class="mt-2">@(editingDeviceId.HasValue ? "Gerät speichern" : "Zuordnen")</MudButton>
+                        @if (editingDeviceId.HasValue || deviceKey.Length != 0)
+                        {
+                            <MudButton Variant="Variant.Text" OnClick="CancelDeviceEdit" Class="mt-2 ml-2">Abbrechen</MudButton>
                         }
-                        <MudItem xs="12" sm="@(ConnectionAddress.VisaDrivers.Contains(driver) ? 3 : 6)">
-                            <MudTextField Label="Weitere Verbindungsparameter (JSON-Objekt)" @bind-Value="connectionJson" />
-                        </MudItem>
-                    </MudGrid>
-                    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveDeviceAsync" Disabled="busy" Class="mt-2">@(editingDeviceId.HasValue ? "Gerät speichern" : "Zuordnen")</MudButton>
-                    @if (editingDeviceId.HasValue || deviceKey.Length != 0)
-                    {
-                        <MudButton Variant="Variant.Text" OnClick="CancelDeviceEdit" Class="mt-2 ml-2">Abbrechen</MudButton>
-                    }
+                    </section>
 
                     <MudDivider Class="my-4" />
                     <MudText Typo="Typo.h6">YAML-Import und -Export</MudText>
@@ -515,6 +521,20 @@
         CancelDeviceEdit();
         yamlText = "";
     }
+
+    private Task SaveSettingsAsync(string settingsJson) => RunAsync(async () =>
+    {
+        if (selectedStation is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var station = await db.Stations.SingleOrDefaultAsync(item => item.Id == selectedStation.Id)
+            ?? throw new InvalidOperationException("Das Prüfsystem existiert nicht mehr. Bitte neu laden.");
+        if (station.SettingsJson != selectedStation.SettingsJson)
+            throw new InvalidOperationException("Die Einstellungen wurden zwischenzeitlich geändert. Bitte neu laden.");
+        station.SettingsJson = settingsJson;
+        await db.SaveChangesAsync();
+        await ReloadAsync(station.Id);
+        Snackbar.Add("Prüfsystem-Einstellungen gespeichert.", Severity.Success);
+    });
 
     private Task SaveStationAsync() => RunAsync(async () =>
     {

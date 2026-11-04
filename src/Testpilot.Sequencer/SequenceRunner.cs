@@ -41,7 +41,7 @@ public sealed class SequenceRunner
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(runContext);
         ValidateContext(runContext);
-        _ = ExecutionPlanSerializer.Serialize(plan);
+        plan = ExecutionPlanSettings.Resolve(plan, []);
 
         var run = new Run
         {

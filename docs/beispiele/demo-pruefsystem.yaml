@@ -1,0 +1,8 @@
+name: DEMO-1
+systemType: DEMO
+description: Hardwarefreier Beispielmessplatz
+settingsJson: '[]'
+devices:
+  - deviceKey: dmm1
+    driver: SimulatedSwitchMultimeter
+    connectionParametersJson: '{"channels":[1003],"readings":{"1003|VOLT:DC":3.3}}'

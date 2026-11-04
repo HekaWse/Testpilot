@@ -1,4 +1,5 @@
 @page "/plans"
+@using System.Text.Json
 @inject IDbContextFactory<TestpilotDbContext> DbFactory
 @inject ILogger<TestPlanService> PlanServiceLogger
 @inject ExecutionPlanOptimizer Optimizer
@@ -13,13 +14,14 @@
     }
     <MudGrid Spacing="3">
         <MudItem xs="12" md="4">
-            <MudPaper Class="pa-4">
-                <MudText Typo="Typo.h6">Entwurf anlegen</MudText>
+            <MudPaper Class="editor-section editor-form" Elevation="0">
+                <MudText Typo="Typo.h6">Neuen Entwurf anlegen</MudText>
                 <MudTextField Label="Artikelnummer" @bind-Value="newArticle" Required="true" Class="mt-2" />
                 <MudTextField Label="Fertigungszustand" @bind-Value="newFz" Required="true" Class="mt-2" />
                 <MudText Typo="Typo.caption">Artikelnummer und Fertigungszustand können nach dem Anlegen nicht mehr geändert werden.</MudText>
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreatePlanAsync" Disabled="busy" Class="mt-3">Entwurf erstellen</MudButton>
-                <MudDivider Class="my-4" />
+            </MudPaper>
+            <MudPaper Class="editor-section" Elevation="0">
                 <MudText Typo="Typo.h6">Vorhandene Prüfpläne</MudText>
                 @if (plans.Count == 0)
                 {
@@ -50,6 +52,9 @@
                     <MudChip T="string" Color="@StatusColor(selectedPlan.Status)" Class="my-2">@StatusText(selectedPlan.Status)</MudChip>
                     <MudChip T="string" Class="my-2">Prüfsystemtyp: @SystemName(selectedPlan.TestSystemTypeId)</MudChip>
                     <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Refresh" OnClick="ReloadSelectedAsync" Disabled="busy" Class="my-2">Neu laden</MudButton>
+                    <NamedSettingsEditor @key="selectedPlan.Id" SettingsJson="@selectedPlan.SettingsJson" Scope="plan"
+                                         ReadOnly="@(selectedPlan.Status != PlanStatus.Draft)" Busy="busy" OnSave="SaveSettingsAsync" />
+                    <MudDivider Class="my-4" />
                     @if (selectedPlan.TestSystemTypeId is not null)
                     {
                         var availability = StationAvailability();
@@ -91,82 +96,82 @@
                         {
                             <MudAlert Severity="Severity.Warning" Class="my-2">Diese Schritte verwenden Geräte, die im gewählten Prüfsystemtyp fehlen: @string.Join(", ", StepsWithUnknownDevices)</MudAlert>
                         }
-                        <MudDivider Class="my-4" />
-                        <MudText Typo="Typo.h6">@(editingStepId.HasValue ? "Schritt bearbeiten" : "Schritt hinzufügen")</MudText>
-                        <MudGrid Spacing="2" Class="mt-1">
-                            <MudItem xs="12" sm="4"><MudTextField Label="Schrittname" @bind-Value="stepName" /></MudItem>
-                            <MudItem xs="12" sm="3">
-                                <MudSelect T="StepType" Label="Typ" Value="@stepType" ValueChanged="StepTypeChanged">
-                                    @foreach (var value in Enum.GetValues<StepType>())
-                                    {
-                                        <MudSelectItem Value="@value">@StepTypeText(value)</MudSelectItem>
-                                    }
-                                </MudSelect>
-                            </MudItem>
-                            @if (RequiresDevice(stepType))
-                            {
-                                <MudItem xs="12" sm="5">
-                                    <MudSelect T="string" Label="Gerät des Prüfsystemtyps" Value="@stepDeviceKey" ValueChanged="DeviceChanged">
-                                        @foreach (var device in DevicesFor(stepType))
+                        <section class="editor-form my-6" aria-label="Prüfschritt eingeben">
+                            <MudText Typo="Typo.h6">@(editingStepId.HasValue ? "Schritt bearbeiten" : "Neuen Schritt hinzufügen")</MudText>
+                            <MudGrid Spacing="2" Class="mt-1">
+                                <MudItem xs="12" sm="4"><MudTextField Label="Schrittname" @bind-Value="stepName" /></MudItem>
+                                <MudItem xs="12" sm="3">
+                                    <MudSelect T="StepType" Label="Typ" Value="@stepType" ValueChanged="StepTypeChanged">
+                                        @foreach (var value in Enum.GetValues<StepType>())
                                         {
-                                            <MudSelectItem Value="@device.DeviceKey">@DeviceText(device)</MudSelectItem>
+                                            <MudSelectItem Value="@value">@StepTypeText(value)</MudSelectItem>
                                         }
                                     </MudSelect>
                                 </MudItem>
-                            }
-                            @if (stepType == StepType.Measure)
-                            {
-                                <MudItem xs="12" sm="3">
-                                    <MudSelect T="int" Label="Kanal" Value="@measureChannel" ValueChanged="ChannelChanged">
-                                        @foreach (var channel in availableChannels)
-                                        {
-                                            <MudSelectItem Value="@channel.Number">@channel.Number — @channel.Name (@ChannelTypeText(channel.Type))</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudItem>
-                                <MudItem xs="12" sm="3">
-                                    <MudSelect T="string" Label="Messgröße" Value="@measureFunction" ValueChanged="MeasurementFunctionChanged">
-                                        @foreach (var function in availableFunctions)
-                                        {
-                                            <MudSelectItem Value="@function">@function</MudSelectItem>
-                                        }
-                                    </MudSelect>
-                                </MudItem>
-                                <MudItem xs="12" sm="3">
-                                    <MudTextField T="string" Label="Einheit (aus der Messgröße)" Value="@(measureUnit is null ? "" : Units.Symbol(measureUnit.Value))" ReadOnly="true" />
-                                </MudItem>
-                                <MudItem xs="12" sm="3"><MudTextField Label="Bereich (z. B. 10 mV)" @bind-Value="measureRangeInput" /></MudItem>
-                                <MudItem xs="12" sm="3"><MudTextField Label="NPLC (z. B. 0,2)" @bind-Value="measureNplcInput" /></MudItem>
-                                <MudItem xs="12" sm="3"><MudTextField Label="Grenzwert unten (z. B. 3,2 V)" @bind-Value="limitLowInput" /></MudItem>
-                                <MudItem xs="12" sm="3"><MudTextField Label="Grenzwert oben (z. B. 3,4 V)" @bind-Value="limitHighInput" /></MudItem>
-                            }
-                            else
-                            {
-                                <MudItem xs="12"><MudTextField Label="Schrittparameter (JSON-Objekt)" @bind-Value="parametersJson" Lines="3" Sizing="InputSizing.Auto" /></MudItem>
-                            }
-                            <MudItem xs="12" sm="6"><MudCheckBox T="bool" Label="Breakpoint vor diesem Schritt" @bind-Value="breakpoint" /></MudItem>
-                        </MudGrid>
-                        @if (stepType == StepType.Measure && (selectedProfile is null || availableChannels.Count == 0 || availableFunctions.Count == 0))
-                        {
-                            <MudAlert Severity="Severity.Warning" Class="my-2">Für dieses Gerät sind keine verwendbaren Messfunktionen im Profil definiert. Messungen sind erst nach Ergänzung eines geeigneten, verifizierten Profils möglich.</MudAlert>
-                        }
-                        @if (selectedProfile is not null && selectedProfile.SpecialCases.Concat(selectedProfile.Todos).Any())
-                        {
-                            <MudAlert Severity="Severity.Warning" Class="my-2">
-                                @foreach (var note in selectedProfile.SpecialCases.Concat(selectedProfile.Todos))
+                                @if (RequiresDevice(stepType))
                                 {
-                                    <div>@note</div>
+                                    <MudItem xs="12" sm="5">
+                                        <MudSelect T="string" Label="Gerät des Prüfsystemtyps" Value="@stepDeviceKey" ValueChanged="DeviceChanged">
+                                            @foreach (var device in DevicesFor(stepType))
+                                            {
+                                                <MudSelectItem Value="@device.DeviceKey">@DeviceText(device)</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
                                 }
-                            </MudAlert>
-                        }
-                        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveStepAsync" Disabled="busy" Class="mt-2">@(editingStepId.HasValue ? "Änderungen speichern" : "Schritt hinzufügen")</MudButton>
-                        @if (editingStepId.HasValue)
-                        {
-                            <MudButton Variant="Variant.Text" OnClick="CancelStepEdit" Class="mt-2 ml-2">Bearbeitung abbrechen</MudButton>
-                        }
-                        <MudDivider Class="my-4" />
+                                @if (stepType == StepType.Measure)
+                                {
+                                    <MudItem xs="12" sm="3">
+                                        <MudSelect T="int" Label="Kanal" Value="@measureChannel" ValueChanged="ChannelChanged">
+                                            @foreach (var channel in availableChannels)
+                                            {
+                                                <MudSelectItem Value="@channel.Number">@channel.Number — @channel.Name (@ChannelTypeText(channel.Type))</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="3">
+                                        <MudSelect T="string" Label="Messgröße" Value="@measureFunction" ValueChanged="MeasurementFunctionChanged">
+                                            @foreach (var function in availableFunctions)
+                                            {
+                                                <MudSelectItem Value="@function">@function</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    <MudItem xs="12" sm="3">
+                                        <MudTextField T="string" Label="Einheit (aus der Messgröße)" Value="@(measureUnit is null ? "" : Units.Symbol(measureUnit.Value))" ReadOnly="true" />
+                                    </MudItem>
+                                    <MudItem xs="12" sm="3"><MudTextField Label="Bereich (z. B. 10 mV)" @bind-Value="measureRangeInput" /></MudItem>
+                                    <MudItem xs="12" sm="3"><MudTextField Label="NPLC (z. B. 0,2)" @bind-Value="measureNplcInput" /></MudItem>
+                                    <MudItem xs="12" sm="3"><MudTextField Label="Grenzwert unten (z. B. 3,2 V)" @bind-Value="limitLowInput" /></MudItem>
+                                    <MudItem xs="12" sm="3"><MudTextField Label="Grenzwert oben (z. B. 3,4 V)" @bind-Value="limitHighInput" /></MudItem>
+                                }
+                                else
+                                {
+                                    <MudItem xs="12"><MudTextField Label="Schrittparameter (JSON-Objekt)" @bind-Value="parametersJson" Lines="3" Sizing="InputSizing.Auto" /></MudItem>
+                                }
+                                <MudItem xs="12" sm="6"><MudCheckBox T="bool" Label="Breakpoint vor diesem Schritt" @bind-Value="breakpoint" /></MudItem>
+                            </MudGrid>
+                            @if (stepType == StepType.Measure && (selectedProfile is null || availableChannels.Count == 0 || availableFunctions.Count == 0))
+                            {
+                                <MudAlert Severity="Severity.Warning" Class="my-2">Für dieses Gerät sind keine verwendbaren Messfunktionen im Profil definiert. Messungen sind erst nach Ergänzung eines geeigneten, verifizierten Profils möglich.</MudAlert>
+                            }
+                            @if (selectedProfile is not null && selectedProfile.SpecialCases.Concat(selectedProfile.Todos).Any())
+                            {
+                                <MudAlert Severity="Severity.Warning" Class="my-2">
+                                    @foreach (var note in selectedProfile.SpecialCases.Concat(selectedProfile.Todos))
+                                    {
+                                        <div>@note</div>
+                                    }
+                                </MudAlert>
+                            }
+                            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveStepAsync" Disabled="busy" Class="mt-2">@(editingStepId.HasValue ? "Änderungen speichern" : "Schritt hinzufügen")</MudButton>
+                            @if (editingStepId.HasValue)
+                            {
+                                <MudButton Variant="Variant.Text" OnClick="CancelStepEdit" Class="mt-2 ml-2">Bearbeitung abbrechen</MudButton>
+                            }
+                        </section>
                     }
-                    <MudText Typo="Typo.h6">Schritte (@selectedPlan.Steps.Count)</MudText>
+                    <MudText Typo="Typo.h6">Vorhandene Schritte (@selectedPlan.Steps.Count)</MudText>
                     @if (selectedPlan.Steps.Count == 0)
                     {
                         <MudText>Der Entwurf enthält noch keine Schritte.</MudText>
@@ -380,8 +385,24 @@
         foreach (var station in stations.Where(item => item.TestSystemTypeId == typeId))
         {
             var missing = StationDevices.Missing(required, station);
-            if (missing.Count == 0) runnable.Add(station.Name);
-            else notRunnable.Add($"{station.Name} (fehlt: {string.Join(", ", missing)})");
+            if (missing.Count != 0)
+            {
+                notRunnable.Add($"{station.Name} (fehlt: {string.Join(", ", missing)})");
+                continue;
+            }
+            try
+            {
+                var resolver = new NamedSettingsResolver(NamedSettings.Deserialize(selectedPlan.SettingsJson), NamedSettings.Deserialize(station.SettingsJson));
+                foreach (var step in selectedPlan.Steps)
+                    _ = resolver.ResolveJson(step.ParametersJson);
+                foreach (var device in station.Devices.Where(device => required.Contains(device.DeviceKey)))
+                    _ = resolver.ResolveJson(device.ConnectionParametersJson);
+                runnable.Add(station.Name);
+            }
+            catch (Exception exception) when (exception is ArgumentException or JsonException)
+            {
+                notRunnable.Add($"{station.Name} (Einstellungen: {exception.Message})");
+            }
         }
         return (runnable, notRunnable);
     }
@@ -482,6 +503,20 @@
         CancelStepEdit();
         await ReloadAsync(plan.Id);
         Notify("Entwurf erstellt.", Severity.Success);
+    });
+
+    private Task SaveSettingsAsync(string settingsJson) => RunAsync(async () =>
+    {
+        if (selectedPlan is null) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var plan = await db.TestPlans.SingleOrDefaultAsync(item => item.Id == selectedPlan.Id)
+            ?? throw new PlanNotFoundException("Der Prüfplan existiert nicht mehr.");
+        if (plan.Status != PlanStatus.Draft || plan.UpdatedAt != selectedPlan.UpdatedAt)
+            throw new PlanConflictException("Der Plan wurde zwischenzeitlich geändert. Bitte neu laden.");
+        plan.SettingsJson = settingsJson;
+        await db.SaveChangesAsync();
+        await ReloadAsync(plan.Id);
+        Snackbar.Add("Plan-Einstellungen gespeichert. Bitte die Vorschau neu erstellen.", Severity.Success);
     });
 
     private Task SavePlanAsync() => RunAsync(async () =>

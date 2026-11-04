@@ -1,0 +1,34 @@
+{
+  "Operator": {
+    "Station": "DEMO-1",
+    "SerialNumberPattern": "^[0-9]{10}$",
+    "FixtureDevice": "",
+    "SerialReaderDevice": "",
+    "FixtureSettleMilliseconds": 500
+  },
+  "Database": { "Provider": "Sqlite" },
+  "ConnectionStrings": {
+    "Testpilot": "Data Source=C:\\TestpilotDemo\\testpilot.db"
+  },
+  "Export": { "Directory": "C:\\TestpilotDemo\\exports" },
+  "Logging": { "Directory": "C:\\TestpilotDemo\\logs" },
+  "Simulation": { "Enabled": true, "SerialNumber": "1234567890" },
+  "Debug": { "DisableTimeouts": false },
+  "Sequencer": {
+    "OperationTimeoutSeconds": 30,
+    "LongOperationTimeoutSeconds": 600
+  },
+  "DevicesFile": "",
+  "Sap": {
+    "BaseUrl": "",
+    "Command": "",
+    "TimeoutSeconds": 30,
+    "MockOrders": {
+      "FAUF-DEMO": {
+        "ArtNr": "DEMO-001",
+        "Fz": "A",
+        "Description": "Simulierte Beispielbaugruppe"
+      }
+    }
+  }
+}

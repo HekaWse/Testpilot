@@ -223,6 +223,12 @@ namespace Testpilot.Data.Migrations.PostgreSql
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
+
                     b.Property<Guid?>("TestSystemTypeId")
                         .HasColumnType("uuid");
 
@@ -324,6 +330,12 @@ namespace Testpilot.Data.Migrations.PostgreSql
 
                     b.Property<DateTimeOffset?>("ReleasedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]");
 
                     b.Property<int>("Status")
                         .IsConcurrencyToken()

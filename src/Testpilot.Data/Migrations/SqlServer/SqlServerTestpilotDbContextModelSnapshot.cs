@@ -223,6 +223,12 @@ namespace Testpilot.Data.Migrations.SqlServer
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("[]");
+
                     b.Property<Guid?>("TestSystemTypeId")
                         .HasColumnType("uniqueidentifier");
 
@@ -324,6 +330,12 @@ namespace Testpilot.Data.Migrations.SqlServer
 
                     b.Property<DateTimeOffset?>("ReleasedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SettingsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("nvarchar(max)")
+                        .HasDefaultValue("[]");
 
                     b.Property<int>("Status")
                         .IsConcurrencyToken()

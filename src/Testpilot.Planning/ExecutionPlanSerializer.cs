@@ -35,6 +35,8 @@ public static class ExecutionPlanSerializer
             throw new JsonException("Execution plan identity and version are required.");
         ArgumentException.ThrowIfNullOrWhiteSpace(plan.ArtNr);
         ArgumentException.ThrowIfNullOrWhiteSpace(plan.Fz);
+        ArgumentNullException.ThrowIfNull(plan.Settings);
+        Testpilot.Core.NamedSettings.Validate(plan.Settings);
         ArgumentNullException.ThrowIfNull(plan.Devices);
         ArgumentNullException.ThrowIfNull(plan.Init);
         ArgumentNullException.ThrowIfNull(plan.Init.Configurations);

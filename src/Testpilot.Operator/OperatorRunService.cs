@@ -64,7 +64,9 @@ public sealed class OperatorRunService(IServiceScopeFactory scopes, ISapClient s
         DeviceProfile profile;
         try
         {
-            configuration = DriverConfiguration.Parse(device.DeviceKey, device.Driver, device.ConnectionParametersJson);
+            var resolver = new NamedSettingsResolver([], NamedSettings.Deserialize(station.SettingsJson));
+            var connection = resolver.ResolveJson(device.ConnectionParametersJson);
+            configuration = DriverConfiguration.Parse(device.DeviceKey, device.Driver, connection);
             profile = registry.GetProfile(configuration);
         }
         catch (Exception exception)
@@ -100,10 +102,11 @@ public sealed class OperatorRunService(IServiceScopeFactory scopes, ISapClient s
             : null;
         var storedAddresses = station.Devices.ToDictionary(device => device.Id, device => device.ConnectionParametersJson);
         var unknownAliases = RunPreparation.ApplyDeviceAddresses(station, settings.DeviceAddresses);
+        var resolver = new NamedSettingsResolver([], NamedSettings.Deserialize(station.SettingsJson));
         var devices = station.Devices.OrderBy(device => device.DeviceKey, StringComparer.Ordinal)
             .Select(device => new SystemDeviceInfo(device.DeviceKey,
                 type?.Devices.SingleOrDefault(item => item.DeviceKey == device.DeviceKey)?.Model,
-                device.Driver, ConnectionAddress.Describe(device.ConnectionParametersJson))
+                device.Driver, ConnectionAddress.Describe(resolver.ResolveJson(device.ConnectionParametersJson, deferPlan: true)))
             {
                 FromDevicesFile = device.ConnectionParametersJson != storedAddresses[device.Id]
             })

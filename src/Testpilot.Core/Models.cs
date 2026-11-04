@@ -42,6 +42,7 @@ public sealed class Station
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
     public Guid? TestSystemTypeId { get; set; }
+    public string SettingsJson { get; set; } = "[]";
     public List<StationDevice> Devices { get; set; } = [];
 }
 
@@ -78,6 +79,7 @@ public sealed class TestPlan
     public int Version { get; set; } = 1;
     public Guid? TestSystemTypeId { get; set; }
     public PlanStatus Status { get; set; }
+    public string SettingsJson { get; set; } = "[]";
     public string? ExecutionPlanJson { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DatabaseClock.UtcNow();
     public DateTimeOffset UpdatedAt { get; set; } = DatabaseClock.UtcNow();

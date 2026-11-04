@@ -50,6 +50,7 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
             entity.Property(x => x.Id).ValueGeneratedNever();
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.SettingsJson).IsRequired().HasDefaultValue("[]");
             entity.HasIndex(x => x.Name).IsUnique();
             entity.HasOne<TestSystemType>().WithMany().HasForeignKey(x => x.TestSystemTypeId).OnDelete(DeleteBehavior.Restrict);
             entity.HasMany(x => x.Devices).WithOne().HasForeignKey(x => x.StationId).OnDelete(DeleteBehavior.Cascade);
@@ -67,6 +68,7 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
             entity.Property(x => x.Id).ValueGeneratedNever();
             entity.Property(x => x.ArtNr).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Fz).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.SettingsJson).IsRequired().HasDefaultValue("[]");
             entity.Property(x => x.Status).IsConcurrencyToken();
             entity.Property(x => x.UpdatedAt).IsConcurrencyToken();
             entity.HasIndex(x => new { x.ArtNr, x.Fz, x.Version }).IsUnique();
@@ -147,6 +149,7 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
             if (entry.State == EntityState.Deleted) continue;
             ArgumentException.ThrowIfNullOrWhiteSpace(plan.ArtNr);
             ArgumentException.ThrowIfNullOrWhiteSpace(plan.Fz);
+            _ = NamedSettings.Deserialize(plan.SettingsJson);
             if (plan.Version <= 0 || !Enum.IsDefined(plan.Status)) throw new ArgumentException("Invalid plan version or status.");
             if (entry.State == EntityState.Added && plan.Status != PlanStatus.Draft)
                 throw new PlanConflictException("Neue Pläne müssen Entwürfe sein.");
@@ -193,7 +196,10 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
             entry.Entity.Model = DeviceCatalog.Get(entry.Entity.Model).Name;
         }
         foreach (var entry in ChangeTracker.Entries<Station>().Where(x => x.State is EntityState.Added or EntityState.Modified))
+        {
             ArgumentException.ThrowIfNullOrWhiteSpace(entry.Entity.Name);
+            _ = NamedSettings.Deserialize(entry.Entity.SettingsJson);
+        }
         foreach (var entry in ChangeTracker.Entries<StationDevice>().Where(x => x.State is EntityState.Added or EntityState.Modified))
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(entry.Entity.DeviceKey);

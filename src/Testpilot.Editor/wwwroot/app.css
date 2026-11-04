@@ -1,7 +1,8 @@
 :root {
     font-family: "Arial Narrow", Arial, sans-serif;
-    background: #00a7d1;
-    color: #fff;
+    color-scheme: light;
+    background: #fff;
+    color: #143340;
 }
 
 body {
@@ -29,7 +30,7 @@ body {
 .testpilot-layout .mud-appbar {
     position: sticky;
     top: 0;
-    border-bottom: 1px solid #fff;
+    border-bottom: 3px solid #00a7d1;
 }
 
 .testpilot-layout .mud-toolbar {
@@ -43,13 +44,56 @@ body {
 }
 
 .testpilot-layout a:not(.mud-button-root) {
-    color: #fff;
+    color: var(--mud-palette-primary);
     text-decoration: underline;
 }
 
 .testpilot-layout :focus-visible {
-    outline: 2px solid #ffe000;
+    outline: 2px solid var(--mud-palette-primary);
     outline-offset: 3px;
+}
+
+.testpilot-content :is(h1, h2, h3, h4, h5, h6) {
+    color: var(--mud-palette-primary);
+}
+
+.testpilot-content .mud-paper:not(.editor-section) {
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.testpilot-content .mud-divider:not(.mud-divider-vertical) {
+    border-bottom: 2px solid var(--mud-palette-divider);
+}
+
+.editor-section {
+    padding: 1.25rem;
+    border: 1px solid var(--mud-palette-divider);
+    border-top: 3px solid #00a7d1;
+    border-radius: 0.5rem;
+    background: var(--mud-palette-surface);
+}
+
+.editor-section + .editor-section {
+    margin-top: 1.5rem;
+}
+
+.editor-form {
+    padding: 1.25rem;
+    border: 1px solid var(--mud-palette-divider);
+    border-left: 4px solid #00a7d1;
+    border-radius: 0.5rem;
+    background: var(--mud-palette-surface);
+}
+
+.editor-section > .editor-form {
+    margin-top: 1.5rem;
+}
+
+.editor-section > .mud-typography-h6:first-child,
+.editor-form > .mud-typography-h6:first-child {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--mud-palette-divider);
 }
 
 h1:focus {
@@ -86,9 +130,9 @@ h1:focus {
     max-height: 32rem;
     overflow: auto;
     padding: 1rem;
-    background: #006b8a;
-    color: #fff;
-    border: 1px solid #73cee5;
+    background: var(--mud-palette-background-gray);
+    color: var(--mud-palette-text-primary);
+    border: 1px solid var(--mud-palette-divider);
     border-radius: 0.25rem;
     white-space: pre-wrap;
     overflow-wrap: anywhere;

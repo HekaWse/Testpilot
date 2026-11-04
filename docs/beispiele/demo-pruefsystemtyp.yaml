@@ -1,0 +1,7 @@
+name: DEMO
+description: Hardwarefreie Beispielausstattung
+devices:
+  - deviceKey: dmm1
+    model: SimDmm
+    description: Simuliertes Multimeter
+    optionsJson: '{"channels":[1003]}'
