@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Testpilot.Core;
+using Testpilot.Data;
 using Testpilot.Drivers.Abstractions;
 using Testpilot.Sap;
 using Testpilot.Sequencer;
@@ -14,6 +15,8 @@ public enum RunDisplayState { None, Running, Pass, Fail, Error, Aborted }
 /// It also answers the sequencer's single-step and operator-prompt requests (<see cref="ISequenceInteraction"/>).
 /// With a configured test adapter (Operator:FixtureDevice) closing the adapter starts the run:
 /// lock adapter -> read serial number -> run -> release adapter with the result lamp.
+/// Operators are not recorded. Single-step mode is only available in debug mode, which needs a short name and
+/// password maintained in the editor (Debug-Berechtigungen); the short name is stored with the run.
 /// </summary>
 public sealed class MainViewModel : ObservableObject, ISequenceInteraction
 {
@@ -42,10 +45,12 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
     private bool isRunning;
     private bool isWaitingForContinue;
     private string fauf = "";
-    private string operatorName = "";
+    private string? debugUser;
     private string serialNumber = "";
     private bool singleStepMode;
     private string? orderText;
+    private string? articleDescription;
+    private string? planText;
     private string statusText = "";
     private string? errorText;
     private string? continueText;
@@ -69,6 +74,8 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
         YesCommand = new RelayCommand(() => Answer(true), () => IsPromptVisible);
         NoCommand = new RelayCommand(() => Answer(false), () => IsPromptVisible);
         SimulateFixtureCloseCommand = new RelayCommand(() => fixture?.SimulateClose(), () => CanSimulateFixture && fixture is not null);
+        DebugLoginCommand = new RelayCommand(() => DebugLoginRequested?.Invoke(this, EventArgs.Empty), () => CanEdit && !IsDebugMode);
+        DebugLogoutCommand = new RelayCommand(LogoutDebug, () => CanEdit && IsDebugMode);
         statusText = "Einrichtung wird geprüft …";
         fixtureStateText = IsAutoStart ? "Adapter: unbekannt" : null;
     }
@@ -78,6 +85,9 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
 
     /// <summary>Raised when a run has finished, also after cancellation.</summary>
     public event EventHandler? RunFinished;
+
+    /// <summary>Asks the window to show the debug login (short name and password).</summary>
+    public event EventHandler? DebugLoginRequested;
 
     public string Station => service.Settings.Station;
 
@@ -108,6 +118,8 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
     public RelayCommand YesCommand { get; }
     public RelayCommand NoCommand { get; }
     public RelayCommand SimulateFixtureCloseCommand { get; }
+    public RelayCommand DebugLoginCommand { get; }
+    public RelayCommand DebugLogoutCommand { get; }
 
     /// <summary>A test adapter is configured: closing it starts the run, there is no start button.</summary>
     public bool IsAutoStart => service.Settings.IsAutoStart;
@@ -177,11 +189,25 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
         }
     }
 
-    public string OperatorName
+    /// <summary>Short name of the person who activated debug mode; null outside debug mode.</summary>
+    public string? DebugUser
     {
-        get => operatorName;
-        set => SetProperty(ref operatorName, value ?? "");
+        get => debugUser;
+        private set
+        {
+            if (!SetProperty(ref debugUser, value))
+                return;
+            OnPropertyChanged(nameof(IsDebugMode));
+            OnPropertyChanged(nameof(DebugModeText));
+            if (value is null)
+                SingleStepMode = false;
+            RefreshCommands();
+        }
     }
+
+    public bool IsDebugMode => DebugUser is not null;
+
+    public string? DebugModeText => DebugUser is null ? null : $"Debugmodus: {DebugUser}";
 
     public string SerialNumber
     {
@@ -189,16 +215,32 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
         set => SetProperty(ref serialNumber, value ?? "");
     }
 
+    /// <summary>Pause before every step; can only be switched on in debug mode.</summary>
     public bool SingleStepMode
     {
         get => singleStepMode;
-        set => SetProperty(ref singleStepMode, value);
+        set => SetProperty(ref singleStepMode, value && IsDebugMode);
     }
 
+    /// <summary>Article number and production state of the loaded order, for example "Artikel 4711 · FZ A".</summary>
     public string? OrderText
     {
         get => orderText;
         private set => SetProperty(ref orderText, value);
+    }
+
+    /// <summary>Article description from SAP (null when SAP has none).</summary>
+    public string? ArticleDescription
+    {
+        get => articleDescription;
+        private set => SetProperty(ref articleDescription, value);
+    }
+
+    /// <summary>Plan version and number of steps of the loaded order.</summary>
+    public string? PlanText
+    {
+        get => planText;
+        private set => SetProperty(ref planText, value);
     }
 
     public string StatusText
@@ -321,8 +363,7 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
     }
 
     /// <summary>
-    /// Reads the adapter once. A closed adapter (after it was seen open) starts the cycle when FAUF and operator are
-    /// entered; otherwise the adapter is released again with a hint. Public for tests; the window uses the monitoring loop.
+    /// Reads the adapter once. A closed adapter (after it was seen open) starts the cycle when the order is loaded; otherwise the adapter is released again with a hint. Public for tests; the window uses the monitoring loop.
     /// </summary>
     public async Task PollFixtureOnceAsync(CancellationToken cancellationToken = default)
     {
@@ -408,12 +449,6 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
         if (!CanEdit || prepared is null || IsAutoStart)
             return;
         var serial = SerialNumber.Trim();
-        var operatorText = OperatorName.Trim();
-        if (operatorText.Length == 0)
-        {
-            ErrorText = "Bitte Bediener eintragen.";
-            return;
-        }
         if (!service.Settings.IsValidSerialNumber(serial))
         {
             ErrorText = InvalidSerialMessage(serial);
@@ -425,7 +460,7 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
         try
         {
             // After a complete run the next board follows; after an error or abort the same board is usually tested again.
-            if (await ExecuteRunAsync(serial, operatorText, token) is RunDisplayState.Pass or RunDisplayState.Fail)
+            if (await ExecuteRunAsync(serial, token) is RunDisplayState.Pass or RunDisplayState.Fail)
                 SerialNumber = "";
         }
         finally
@@ -467,7 +502,6 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
     private async Task RunFixtureCycleAsync()
     {
         var device = fixture!;
-        var operatorText = OperatorName.Trim();
         var handScanned = SerialNumber.Trim();
         var lamp = FixtureLamp.None;
         var token = BeginRun();
@@ -487,7 +521,7 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
                 return;
             }
             SerialNumber = serial;
-            var state = await ExecuteRunAsync(serial, operatorText, token);
+            var state = await ExecuteRunAsync(serial, token);
             lamp = state == RunDisplayState.Pass ? FixtureLamp.Pass : FixtureLamp.Fail;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -550,7 +584,7 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
     }
 
     /// <summary>Prepares the order again and runs the plan. Sets result, step rows and texts; never throws.</summary>
-    private async Task<RunDisplayState> ExecuteRunAsync(string serial, string operatorText, CancellationToken cancellationToken)
+    private async Task<RunDisplayState> ExecuteRunAsync(string serial, CancellationToken cancellationToken)
     {
         var faufText = prepared!.Fauf;
         try
@@ -560,7 +594,7 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
             StatusText = $"Prüfung läuft – Seriennummer {serial}";
             var current = prepared!;
             var result = await service.RunAsync(current,
-                current.CreateContext(serial, operatorText, SingleStepMode), this, OnProgress, cancellationToken);
+                current.CreateContext(serial, DebugUser ?? "", SingleStepMode), this, OnProgress, cancellationToken);
 
             foreach (var stepResult in result.Run.StepResults)
                 FindRow(stepResult.Order)?.Apply(stepResult);
@@ -694,8 +728,6 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
 
     private string? MissingFixtureInput()
     {
-        if (OperatorName.Trim().Length == 0)
-            return "Bitte zuerst den Bediener eintragen";
         if (prepared is null)
             return "Bitte zuerst den Auftrag (FAUF) laden";
         if (!fixture!.HasReader && SerialNumber.Trim().Length == 0)
@@ -714,6 +746,44 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
         service.Settings.SerialNumberPattern == OperatorSettings.DefaultSerialNumberPattern
             ? $"Ungültige Seriennummer '{serial}': Es werden genau 10 Ziffern erwartet."
             : $"Ungültige Seriennummer '{serial}' (Muster {service.Settings.SerialNumberPattern}).";
+
+    /// <summary>
+    /// Activates debug mode when short name and password match a debug permission in the database.
+    /// Returns null on success, otherwise a German message for the login dialog.
+    /// </summary>
+    public async Task<string?> LoginDebugAsync(string shortName, string password)
+    {
+        if (!CanEdit)
+            return "Während einer Prüfung kann der Debugmodus nicht geändert werden.";
+        if (string.IsNullOrWhiteSpace(shortName) || string.IsNullOrEmpty(password))
+            return "Bitte Kürzel und Passwort eingeben.";
+        IsBusy = true;
+        try
+        {
+            if (!await service.VerifyDebugUserAsync(shortName, password))
+                return "Kürzel oder Passwort ist falsch.";
+        }
+        catch (Exception exception)
+        {
+            return $"Anmeldung nicht möglich: {exception.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+        DebugUser = DebugUserService.NormalizeShortName(shortName);
+        StatusText = $"Debugmodus aktiv ({DebugUser}). Einzelschritt kann eingeschaltet werden.";
+        return null;
+    }
+
+    /// <summary>Leaves debug mode; single-step mode is switched off.</summary>
+    public void LogoutDebug()
+    {
+        if (!CanEdit)
+            return;
+        DebugUser = null;
+        StatusText = prepared is null ? "Debugmodus beendet." : $"Debugmodus beendet. {ReadyText()}";
+    }
 
     public void Cancel()
     {
@@ -796,7 +866,9 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
     private void ShowPrepared(PreparedRun run)
     {
         prepared = run;
-        OrderText = $"Artikel {run.Order.ArtNr} · FZ {run.Order.Fz} · Prüfplan Version {run.Plan.PlanVersion} · {run.Plan.Steps.Count} Schritte";
+        OrderText = $"Artikel {run.Order.ArtNr} · FZ {run.Order.Fz}";
+        ArticleDescription = string.IsNullOrWhiteSpace(run.Order.Description) ? null : run.Order.Description;
+        PlanText = $"Prüfplan Version {run.Plan.PlanVersion} · {run.Plan.Steps.Count} Schritte";
         Steps.Clear();
         foreach (var step in run.Plan.Steps)
             Steps.Add(new StepRow(step));
@@ -808,6 +880,8 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
     {
         prepared = null;
         OrderText = null;
+        ArticleDescription = null;
+        PlanText = null;
         ExportPath = null;
         ResultState = RunDisplayState.None;
         Steps.Clear();
@@ -824,6 +898,8 @@ public sealed class MainViewModel : ObservableObject, ISequenceInteraction
         StartCommand.RaiseCanExecuteChanged();
         SerialEnteredCommand.RaiseCanExecuteChanged();
         SimulateFixtureCloseCommand.RaiseCanExecuteChanged();
+        DebugLoginCommand.RaiseCanExecuteChanged();
+        DebugLogoutCommand.RaiseCanExecuteChanged();
         CancelCommand.RaiseCanExecuteChanged();
         ContinueCommand.RaiseCanExecuteChanged();
         YesCommand.RaiseCanExecuteChanged();

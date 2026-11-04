@@ -7,6 +7,11 @@ native DLLs; working native DLL drivers remain to be implemented.
 The Blazor application is an Interactive Server plan editor built with MudBlazor. Production runs are started from
 the German WPF operator application `Testpilot.Operator`.
 
+Both applications use a cyan-blue/white visual theme with a yellow striped bottom edge,
+inspired by the legacy test-station UI. Arial Narrow is used when installed, with Arial
+as the fallback; no fonts are downloaded or distributed. Input fields and measurement
+results retain contrasting text, and pass/fail/error indicators keep their semantic colors.
+
 ## Requirements and quick start (Windows / PowerShell)
 
 - Visual Studio 2026 with ASP.NET and web development and .NET desktop development (WPF), .NET 10 SDK (current LTS).
@@ -24,6 +29,7 @@ dotnet test tests\Testpilot.Tests\Testpilot.Tests.csproj
 
 Set-Location src\Testpilot.Editor
 dotnet run -- --migrate
+dotnet run -- --seed-system-types   # optional: creates the test system types PS01 … PS31 and PS05-1
 dotnet run --launch-profile https
 ```
 
@@ -54,8 +60,13 @@ A test system type such as PS04 exists several times (PS04-1 … PS04-9); PS05 h
 than PS04. Plans of a type may only use the devices of that type. The setup is entered once:
 
 1. **Prüfsystemtyp** (`TestSystemType`, page `/system-types`): name (`PS04`, `PS05`), description
-   and its devices (`SystemTypeDevice`): device key (`dmm1`, `psu1`, ...), catalog model and model
-   options (for example the 34980A slot modules).
+   and its devices (`SystemTypeDevice`): device key (for example `Ag34980A`, `Hmp4040`), catalog model
+   and model options (for example the 34980A slot modules). **Standardtypen anlegen** (or
+   `Testpilot.Editor --seed-system-types`) creates the known types PS01 … PS31 with their descriptions;
+   existing names are left untouched, so the command can be repeated. It also adds the known equipment
+   (`StationSeed`): the PS05 devices whose device key is still missing (existing devices are kept unchanged)
+   and the test system PS05-1
+   (only if no system of that name exists), see "PS05-1" below.
 2. **Prüfplan**: selects a test system type. The step editor then only offers the devices of that
    type (filtered by the capability the step type needs) and their channels and functions. The plan
    page also shows on which test systems of the type the plan can run and which devices are
@@ -65,11 +76,58 @@ than PS04. Plans of a type may only use the devices of that type. The setup is e
    (VISA resource such as `GPIB0::9::INSTR`, IP address, COM port). A device of the type without
    an entry counts as "not installed" — like the device flags in the legacy `hardware.ini` of PS04.
    Only drivers allowed for the device model are offered. A new system can copy devices and
-   addresses from another system of the same type.
+   addresses from another system of the same type. **Duplizieren** copies the selected system with
+   all devices, drivers and addresses under the next free name (`PS04-1` -> `PS04-2`, used names are
+   skipped); check the addresses of the copy afterwards or override them per PC with `devices.json`.
 
 The test PC only names its system in its local configuration (`Operator:Station`, for example
 `PS04-3`). At startup the operator application reads type, devices, drivers and addresses from the
 database, shows them in the header tooltip and writes them to the log ("System-Konfiguration").
+
+**`devices.json`** (optional, next to `Testpilot.Operator.exe` / `Testpilot.RunPlan.exe`, or the file
+named in the setting `DevicesFile`) lists the VISA addresses of this PC:
+
+```json
+[
+  { "Alias": "Ag34980A", "Resource": "TCPIP0::192.168.178.100::inst0::INSTR" },
+  { "Alias": "Hmp4040",  "Resource": "TCPIP0::192.168.178.101::5025::SOCKET" }
+]
+```
+
+The alias is the device key of the test system (case-insensitive). A listed address replaces the
+stored VISA resource on this PC only (the database is not changed); other connection parameters such
+as `slots` stay. Only devices with a VISA driver (`Ag34980Scpi`, `Ag34970Scpi`, `HmpScpi`, `Ps05Fixture`,
+`VisaGeneric`, DLL variants) can be listed; an entry for another driver (e.g. `SensopartTcp`) is an
+error, simulated devices are ignored, and aliases without a device are shown as ignored in the system
+configuration. A configured `DevicesFile` must exist; the default file is optional. On the page
+`/stations`, **devices.json erzeugen** writes the addresses of the selected system into a text field
+and **Adressen übernehmen** stores the addresses of such a file at the selected system.
+
+#### PS05-1
+
+| Device key | Model | Driver | Address (from the legacy `devices.json`) |
+| --- | --- | --- | --- |
+| `Ag34970A` | `34970A`, slots 1 = 34901A, 2 = 34903A, 3 = 34907A | `Ag34970Scpi` | `TCPIP0::192.168.178.100::inst0::INSTR` |
+| `Hmp2030` | `HMP2030` | `HmpScpi` (`"model":"HMP2030"`) | `TCPIP0::192.168.178.101::5025::SOCKET` |
+| `Ps05Adapter` | `PS05-Adapter` | `Ps05Fixture` | same address as `Ag34970A` (the adapter is wired to its 34907A) |
+
+The HMP2030 is **one** device with three outputs. `PSU1` and `PSU2` of the legacy program are its
+outputs 1 and 2: a `SetPower` step on `Hmp2030` selects `channel` 1 or 2. Only the 34907A position
+(slot 3, adapter channels 301/302) is fixed by the wiring; slots 1 and 2 are assumed in the order given.
+For the automatic start set `Operator:FixtureDevice` to `Ps05Adapter` on the PS05-1 PC. The matching
+`devices.json` (only needed if the PC uses other addresses than the database):
+
+```json
+[
+  { "Alias": "Ag34970A",    "Resource": "TCPIP0::192.168.178.100::inst0::INSTR" },
+  { "Alias": "Hmp2030",     "Resource": "TCPIP0::192.168.178.101::5025::SOCKET" },
+  { "Alias": "Ps05Adapter", "Resource": "TCPIP0::192.168.178.100::inst0::INSTR" }
+]
+```
+
+The 34970A itself has GPIB and RS-232 only; a `TCPIP` address works through a LAN/GPIB gateway.
+If the station uses GPIB directly, enter e.g. `GPIB0::9::INSTR` (legacy default `GPIB_Adr_09`) for
+`Ag34970A` and `Ps05Adapter`. **Check both addresses in Keysight Connection Expert.**
 
 The device catalog (`DeviceCatalog` in `Testpilot.Drivers.Abstractions`, so the editor needs no
 driver reference) lists the models, their allowed real drivers, the simulated driver and the
@@ -77,7 +135,8 @@ profile source:
 
 | Model | Drivers | Options (`OptionsJson`) |
 | --- | --- | --- |
-| `34980A` | `Ag34980Scpi`, `Ag34980Dll` | `{"slots":{"1":"34921A","3":"34937A"}}` (slots 1–8; channel = slot * 100 + module channel) |
+| `34980A` | `Ag34980Scpi`, `Ag34980Dll` | `{"slots":{"1":"34921A","3":"34937A"}}` (slots 1–8; channel = slot * 1000 + module channel, e.g. 1003) |
+| `34970A` | `Ag34970Scpi` | `{"slots":{"1":"34901A","2":"34903A","3":"34907A"}}` (slots 1–3; channel = slot * 100 + module channel, e.g. 103) |
 | `HMP2020`, `HMP2030`, `HMP4030`, `HMP4040` | `HmpScpi`, `HmpDll` | none; real drivers must be configured with the same `"model"` |
 | `SensoPart` | `SensopartTcp` | none |
 | `Matrix120`, `Matrix200` | `DatalogicMatrixSerial` | none; the connection `"model"` must match |
@@ -88,10 +147,9 @@ profile source:
 
 Every model may also be bound to its simulated driver (desk tests). The YAML device profiles are
 embedded in `Testpilot.Drivers.Abstractions` (`src\Testpilot.Drivers.Abstractions\Profiles`) and
-shared by editor, optimizer and drivers. The 34921A/34937A module profiles still contain
-unresolved data-sheet TODOs and no channel facts, so a 34980A system device currently offers no
-channels and the TODOs (prefixed with slot and module) block release. The editor does not
-invent channel choices or 4-wire pairing rules. Profiles can declare `conflictsWithChannels` per
+shared by editor, optimizer and drivers. The 34921A/34937A and 34901A/34903A/34907A module profiles are
+filled from the Keysight user guides (see "Treiberschicht"), so a 34980A or 34970A system device offers
+the channels of its configured modules (34980A `sccc`, 34970A `scc` numbering). Profiles can declare `conflictsWithChannels` per
 channel; the editor warns on declared pair collisions.
 
 Release and run time:
@@ -149,18 +207,31 @@ are enabled centrally. No runtime AI or generated C# is involved.
   SI `NumericRange` limits belong to a measurement function. Channel state declares
   which settings are trackable and which commands invalidate them. Missing state
   information or an unlisted command invalidates conservatively and requires reconfiguration.
-- Sample module data is embedded with `Testpilot.Drivers` under
-  `Profiles\34921A.yaml` and `Profiles\34937A.yaml`. The examples deliberately do
-  **not** invent channel counts, pin types, measurement functions or ranges. Their
-  missing data, including current-input and four-wire pairing details, is marked
-  `TODO: aus Datenblatt prüfen`; those incomplete profiles must not be used to configure
-  physical hardware. The documented 34980A channel expression is `slot * 100 + channel`.
+- The 34980A module profiles are embedded in `Testpilot.Drivers.Abstractions` under
+  `Profiles\34921A.yaml` and `Profiles\34937A.yaml`, filled from the Keysight user guides
+  (34921A: 9018-02147, 34937A: 9018-02150; page references in `specialCases`):
+  - 34921A: channels 1–40 (two banks of 20) with VOLT:DC, VOLT:AC and RES; FRES only on 1–20,
+    the instrument pairs channel n with sense channel n+20 (`fourWireSenseChannel`; the editor warns
+    when the sense channel is used too); fused current channels 41–44 with CURR:DC and CURR:AC only.
+    Analog-bus relays 911–931 are not listed as channels.
+  - 34937A: 28 Form C relays (1–28) and 4 Form A relays (29–32), no measurements.
+  - The 34980A addresses channels as `sccc` = slot * 1000 + channel (for example 1003 = slot 1, channel 3).
+  - The DMM ranges belong to the 34980A mainframe and are not limited by the module profiles.
+- The 34970A module profiles `Profiles\34901A.yaml`, `34903A.yaml` and `34907A.yaml` are filled from the
+  Keysight 34970A/34972A User's Guide 9018-02644 (page references in `specialCases`):
+  - 34901A: channels 1–20 (two banks of 10) with VOLT:DC, VOLT:AC and RES; FRES only on 1–10 with sense
+    channel n+10; fused current channels 21 and 22 with CURR:DC and CURR:AC only.
+  - 34903A: 20 Form C relays (SPDT), no measurements; `ROUT:CLOS` connects NO to COM.
+  - 34907A: digital ports 1/2 (`DigitalIo`), totalizer 3 (`Totalizer`), DACs 4/5 (`AnalogOutput`).
+    These channel types have no measurement functions; relay steps on them are rejected by the
+    optimizer and the driver. In PS05 the adapter uses 301/302 through `Ps05Fixture`.
+  - The 34970A addresses channels as `scc` = slot * 100 + channel (for example 121 = slot 1, channel 21).
 - `new DriverRegistry().AddSimulatedDrivers()` registers deterministic
   `SimulatedSwitchMultimeter`, `SimulatedPowerSupply`, `SimulatedProgrammer`,
   `SimulatedBarcodeScanner` and `SimulatedFixture` (test adapter, closed from outside with
   `SimulatedFixtures.Close(deviceKey)`). For example, pass `connectionJson` containing
   `{"readings":{"1|VOLT:DC":3.298}}` to
-  `DriverConfiguration.Parse("dmm1", "SimulatedSwitchMultimeter", connectionJson)`.
+  `DriverConfiguration.Parse("Ag34980A", "SimulatedSwitchMultimeter", connectionJson)`.
   Simulated meters return zero for unconfigured fixture values. Power outputs start
   disabled and relays open; changing a relay invalidates the simulated meter configuration.
   DMM profiles can be configured with plan-specific channel numbers. Simulation is pure
@@ -196,9 +267,11 @@ Only for `Testpilot.RunPlan` and `Testpilot.Operator` (the editor never runs a p
 | --- | --- |
 | `Export:Directory` | `exports` |
 | `Simulation:Enabled` | RunPlan: simulation unless `false`. Operator: see phase 6. Simulated runs are stored with `Simulated = true` and exported with `"simulated": true`. |
-| `Sap:Command`, `Sap:ArgumentsJson` | External SAP read program (an `.exe`, no `.bat`/`.cmd`); without a command the SAP mock is used |
-| `Sap:TimeoutSeconds` | `30` (1–600); the SAP program is stopped after this time |
-| `Sap:MockOrders:<FAUF>:ArtNr` / `:Fz` | Orders known to the SAP mock (desk tests of the operator flow) |
+| `Sap:BaseUrl` | SAP REST API, e.g. `https://prod.heka.de/sapapi/` (`GET getOrderDetails?orderNo=<FAUF>`, read only; article number, FZ and article description). Takes precedence over `Sap:Command`. |
+| `Sap:Command`, `Sap:ArgumentsJson` | External SAP read program (an `.exe`, no `.bat`/`.cmd`); used when `Sap:BaseUrl` is empty. Without both the SAP mock is used. |
+| `Sap:TimeoutSeconds` | `30` (1–600); timeout of the REST request or the SAP program |
+| `Sap:MockOrders:<FAUF>:ArtNr` / `:Fz` / `:Description` | Orders known to the SAP mock (desk tests of the operator flow) |
+| `DevicesFile` | empty = `devices.json` next to the exe, if present; see "devices.json" above |
 | `Sequencer:OperationTimeoutSeconds` | `30` (1–3600); limit for each device operation and Measure/Relay/SetPower/Scan step |
 | `Sequencer:LongOperationTimeoutSeconds` | `600` (1–3600); limit for Program, External and CustomCode steps. Wait and OperatorPrompt have no limit. |
 | `Debug:DisableTimeouts` | `false`; disables the sequencer timeouts above. The I/O timeouts inside the drivers (e.g. `timeoutMilliseconds` of a SCPI device) stay active. |
@@ -394,10 +467,11 @@ remote-debug code is required. `BreakpointFlag`, single-step console control and
 
 ## Phase-3 console run
 
-`Testpilot.RunPlan` needs the station name. FAUF, serial and operator can be provided as
-options or entered interactively. Configure `Sap:Command` and `Sap:ArgumentsJson` for the
-external JSON adapter (stdout must be JSON such as `{"artNr":"4711","fz":"A"}`); otherwise the
-SAP mock is used.
+`Testpilot.RunPlan` needs the station name. FAUF and serial can be provided as options or entered
+interactively. Operators are not recorded; `--operator <Kürzel>` optionally stores a debug short name
+with the run. Configure `Sap:BaseUrl` for the SAP REST API or `Sap:Command` and `Sap:ArgumentsJson`
+for an external JSON adapter (stdout must be JSON such as `{"artNr":"4711","fz":"A"}`); otherwise
+the SAP mock is used.
 
 - **Operator flow (without `--plan`)**: FAUF -> SAP order (article/FZ) -> the released plan for
   this article/FZ. With the mock, list the orders under `Sap:MockOrders`, for example
@@ -406,8 +480,8 @@ SAP mock is used.
   to its article/FZ. The mock accepts any FAUF for the selected plan.
 
 ```powershell
-dotnet run --project tools\Testpilot.RunPlan -- --station "Bench 1" --fauf FAUF-123 --serial 1234567890 --operator "Test User"
-dotnet run --project tools\Testpilot.RunPlan -- --plan <GUID> --station "Bench 1" --fauf FAUF-123 --serial SN-123 --operator "Test User" --single-step
+dotnet run --project tools\Testpilot.RunPlan -- --station "Bench 1" --fauf FAUF-123 --serial 1234567890
+dotnet run --project tools\Testpilot.RunPlan -- --plan <GUID> --station "Bench 1" --fauf FAUF-123 --serial SN-123 --operator WSE --single-step
 ```
 
 The preparation (`RunPreparation` in `Testpilot.Sequencer`) is UI-independent and will be used
@@ -442,7 +516,8 @@ stays responsive.
 | `Sequencer:OperationTimeoutSeconds`, `Sequencer:LongOperationTimeoutSeconds` | `30`, `600` | As for RunPlan |
 | `ConnectionStrings:Testpilot`, `Database:Provider` | `Data Source=testpilot.db`, SQLite | Same database as the editor; use an absolute path on a station |
 | `Export:Directory`, `Logging:Directory` | `exports`, `logs` | Relative to the working directory |
-| `Sap:*` | mock | As for RunPlan (`Sap:Command`, `Sap:MockOrders`) |
+| `Sap:BaseUrl` | `https://prod.heka.de/sapapi/` | SAP REST API; clear it to use `Sap:Command` or the mock (`Sap:MockOrders`) for desk tests |
+| `DevicesFile` | empty | `devices.json` next to the exe (optional) or the given file, see "devices.json" |
 
 When started from Visual Studio or with `dotnet run --project src\Testpilot.Operator`, the working
 directory is `src\Testpilot.Editor` (`RunWorkingDirectory` in the project file), so the operator
@@ -451,19 +526,24 @@ A published `Testpilot.Operator.exe` uses its own working directory.
 
 **Operation:**
 
-1. Enter the operator name.
-2. Enter or scan the FAUF and press **Enter**: the order (article/FZ) and the released plan are
-   loaded and the steps are listed.
-3. Enter or scan the serial number and press **Enter** or **F5** (manual mode; with a test adapter
+1. Operators are not recorded. Enter or scan the FAUF and press **Enter**: SAP delivers article
+   number, FZ and article description, which are shown large; the released plan is loaded and the
+   steps are listed.
+2. Enter or scan the serial number and press **Enter** or **F5** (manual mode; with a test adapter
    the run starts when the adapter closes, see below). The plan is re-read before every
    run, so a plan retired in the meantime is detected.
-4. The table shows each step with value, limits and result (i.O. / n.i.O. / Fehler / übersprungen);
+3. The table shows each step with value, limits and result (i.O. / n.i.O. / Fehler / übersprungen);
    the result field shows the overall result. After i.O. or n.i.O. the serial field is cleared for
    the next board; after an error or abort it stays filled for a repeated test.
-5. **Esc** cancels a run (the cleanup phase with safe state always runs). Closing the window
+4. **Esc** cancels a run (the cleanup phase with safe state always runs). Closing the window
    during a run cancels it first.
-6. **Einzelschritt**: pauses before every step until **Weiter** (Ctrl+Space). Operator prompts show
-   **Ja / Nein** buttons. Waiting for the operator is never limited by the device timeout.
+5. **Debugmodus …** (header, Alt+D): login with short name and password. The permissions are
+   maintained in the editor on the page **Debug-Berechtigungen** (`/debug-users`; PBKDF2-hashed,
+   at least 6 characters). Only in debug mode the check box **Einzelschritt** is shown: it pauses
+   before every step until **Weiter** (Ctrl+Space). The short name is stored with the run (`Run.Operator`,
+   otherwise empty). **Debugmodus beenden** switches single-step off again.
+6. Operator prompts show **Ja / Nein** buttons. Waiting for the operator is never limited by the
+   device timeout.
 
 Logs: `logs\operator-*.log` (application, daily) and `logs\run-<time>-<serial>.log` (per run, including
 every device command with response and duration). The JSON export path is shown after the run.
@@ -474,7 +554,7 @@ If the database or the export failed, the window shows a warning; the values are
 With `Operator:FixtureDevice` set, there is no start button; the flow follows the legacy
 `Seriennummer.c`:
 
-1. Enter the operator and load the FAUF once.
+1. Load the FAUF once.
 2. Insert the board and close the adapter. The window polls the adapter every 200 ms
    (header shows *Adapter offen / geschlossen*). A close only counts after the adapter was seen open,
    so a board left in the adapter at program start is not tested again.
@@ -486,7 +566,7 @@ With `Operator:FixtureDevice` set, there is no start button; the flow follows th
    message asks for the hand scanner. The hand scanner types like a keyboard into the serial field
    and ends with Enter (the number is checked and taken over); closing the adapter again starts the
    run with this number. A hand-scanned number is always used instead of the reader.
-6. Closing the adapter without operator or loaded FAUF (or without serial number when no reader is
+6. Closing the adapter without loaded FAUF (or without serial number when no reader is
    configured) releases it again with a hint. **Esc** cancels; the adapter is released in every case.
 
 The adapter connection is held while the program runs; the reader is only connected while reading,
@@ -522,9 +602,11 @@ The development machine and tests do not need a VISA installation; tests inject 
 ### Agilent 34980A SCPI
 
 `Ag34980Scpi` implements the switch-multimeter capability. Connection JSON requires
-`host` or `resource`, `profilePath`, and optional `timeoutMilliseconds`. The module profile must list verified channels/functions and
-must not contain unresolved data-sheet TODOs; the bundled 34921A/34937A files are
-intentionally incomplete and are rejected by the hardware driver until verified.
+`host` or `resource`, either `slots` (for example `{"1":"34921A","3":"34937A"}`, composed from the bundled
+module profiles) or `profilePath` (own YAML profile), and optional `timeoutMilliseconds`. For plans of a
+test system type the operator adds the slots of the type automatically, so the station only needs the address,
+for example `{"resource":"TCPIP0::192.168.178.100::inst0::INSTR"}`. Profiles with unresolved data-sheet TODOs
+are rejected. `Ag34980Dll` accepts `slots`/`profilePath` the same way.
 On connect it sends `*RST` (unless `"resetOnConnect": false`) and `*CLS`. Each channel is configured
 with `CONF:<function> <range|AUTO>,(@ch)` and optional `SENS:<function>:NPLC` (NPLC is rejected for
 AC functions); a measurement selects the channel with `ROUT:SCAN (@ch)` and reads with `READ?`, so
@@ -532,6 +614,26 @@ every channel keeps its own configuration. Relays use `ROUT:CLOS`/`ROUT:OPEN`, t
 `ROUT:OPEN:ALL`. After every command group the error queue is read with `SYST:ERR?`; an instrument
 error raises an exception with the command. Verify command compatibility, ranges and routing
 against the exact chassis/module manual before connecting hardware.
+
+### Agilent/Keysight 34970A SCPI (`Ag34970Scpi`)
+
+Same connection JSON as `Ag34980Scpi` (`host` or `resource`, `slots` or `profilePath`,
+`timeoutMilliseconds`, default 5000), for example `{"resource":"GPIB0::9::INSTR"}`; the slots of the test
+system type are added automatically. Configuration and measurement work as for the 34980A
+(`CONF:<function> <range|AUTO>,(@ch)`, optional `SENS:<function>:NPLC`, `ROUT:SCAN (@ch)` + `READ?`,
+`SYST:ERR?` after every command group). Differences, because the 34907A outputs must keep their state
+(User's Guide 9018-02644 p. 162–169: `*RST` makes both digital ports inputs and sets the DACs to 0 V):
+
+- Connect sends `*IDN?` and `*CLS` only; `*RST` only with `"resetOnConnect": true`.
+- Self-check: `*IDN?` and the error queue, no `*TST?`.
+- Safe state: `ROUT:OPEN (@…)` with the list of all relay/multiplexer channels of the profile
+  (34901A, 34903A); digital I/O, totalizer and DAC channels are never touched.
+- Relay commands on 34907A channels are rejected.
+
+While channels are in the scan list (every measurement uses `ROUT:SCAN`), closing a 34901A channel opens
+the previously closed one (p. 211); use the 34903A for relays that must stay closed together.
+`Ps05Fixture` uses a second VISA session to the same instrument; the operator only uses it before and
+after a run, never in parallel with the sequencer.
 
 ### R&S HMP power supplies (`HmpScpi`)
 

@@ -38,6 +38,7 @@ public sealed class OperatorRunService(IServiceScopeFactory scopes, ISapClient s
         var station = await database.Stations.AsNoTracking().Include(item => item.Devices)
             .SingleOrDefaultAsync(item => item.Name == settings.Station, cancellationToken)
             ?? throw new InvalidOperationException($"Prüfsystem '{settings.Station}' ist in der Datenbank nicht angelegt.");
+        RunPreparation.ApplyDeviceAddresses(station, settings.DeviceAddresses);
 
         var fixture = ReadDevice(station, settings.FixtureDevice, DeviceCapability.TestFixture, "Operator:FixtureDevice");
         var reader = settings.SerialReaderDevice is null
@@ -78,7 +79,8 @@ public sealed class OperatorRunService(IServiceScopeFactory scopes, ISapClient s
 
     /// <summary>
     /// Checks the database schema and reads the configuration of the test system named in Operator:Station
-    /// (type, devices, drivers, addresses) before the first order is entered. The result is also logged.
+    /// (type, devices, drivers, addresses; addresses from devices.json win) before the first order is entered.
+    /// The result is also logged.
     /// </summary>
     public async Task<SystemConfiguration> CheckSetupAsync(CancellationToken cancellationToken = default)
     {
@@ -96,21 +98,41 @@ public sealed class OperatorRunService(IServiceScopeFactory scopes, ISapClient s
             ? await database.TestSystemTypes.AsNoTracking().Include(item => item.Devices)
                 .SingleOrDefaultAsync(item => item.Id == typeId, cancellationToken)
             : null;
+        var storedAddresses = station.Devices.ToDictionary(device => device.Id, device => device.ConnectionParametersJson);
+        var unknownAliases = RunPreparation.ApplyDeviceAddresses(station, settings.DeviceAddresses);
         var devices = station.Devices.OrderBy(device => device.DeviceKey, StringComparer.Ordinal)
             .Select(device => new SystemDeviceInfo(device.DeviceKey,
                 type?.Devices.SingleOrDefault(item => item.DeviceKey == device.DeviceKey)?.Model,
-                device.Driver, ConnectionAddress.Describe(device.ConnectionParametersJson)))
+                device.Driver, ConnectionAddress.Describe(device.ConnectionParametersJson))
+            {
+                FromDevicesFile = device.ConnectionParametersJson != storedAddresses[device.Id]
+            })
             .ToList();
-        var configuration = new SystemConfiguration(station.Name, type?.Name, devices);
+        var configuration = new SystemConfiguration(station.Name, type?.Name, devices)
+        {
+            DevicesFile = settings.DeviceAddresses is null ? null : settings.DevicesFile,
+            UnknownAliases = unknownAliases
+        };
         loggerFactory.CreateLogger<OperatorRunService>().LogInformation("System-Konfiguration: {Configuration}", configuration);
         return configuration;
+    }
+
+    /// <summary>Checks a debug-mode login against the debug permissions maintained in the editor.</summary>
+    public async Task<bool> VerifyDebugUserAsync(string shortName, string password, CancellationToken cancellationToken = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<TestpilotDbContext>();
+        var verified = await new DebugUserService(database).VerifyAsync(shortName, password, cancellationToken);
+        loggerFactory.CreateLogger<OperatorRunService>().LogInformation("Debug login {ShortName}: {Result}",
+            DebugUserService.NormalizeShortName(shortName), verified ? "accepted" : "rejected");
+        return verified;
     }
 
     public async Task<PreparedRun> PrepareAsync(string fauf, CancellationToken cancellationToken = default)
     {
         await using var scope = scopes.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<TestpilotDbContext>();
-        var preparation = new RunPreparation(database, sapClient, registry, settings.SimulationEnabled);
+        var preparation = new RunPreparation(database, sapClient, registry, settings.SimulationEnabled, settings.DeviceAddresses);
         return await preparation.PrepareForOrderAsync(settings.Station, fauf, cancellationToken);
     }
 

@@ -100,6 +100,10 @@
                     {
                         <MudButton Variant="Variant.Text" OnClick="ResetStationEdits" Disabled="busy" Class="mt-2 ml-2">Änderungen verwerfen</MudButton>
                     }
+                    <MudButton Variant="Variant.Outlined" OnClick="DuplicateStationAsync" Disabled="busy" Class="mt-2 ml-2"
+                               title="Legt ein neues Prüfsystem gleichen Typs mit denselben Geräten, Treibern und Adressen an (Name z. B. PS04-2).">
+                        Duplizieren
+                    </MudButton>
                     @if (confirmDelete)
                     {
                         <MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="DeleteStationAsync" Disabled="busy" Class="mt-2 ml-2">Wirklich löschen</MudButton>
@@ -252,6 +256,17 @@
                     <MudTextField Label="Prüfsystem-YAML" @bind-Value="yamlText" Lines="10" Sizing="InputSizing.Auto" Class="mt-2" />
                     <MudButton Variant="Variant.Outlined" OnClick="ExportYaml" Disabled="busy" Class="mt-2">Auswahl exportieren</MudButton>
                     <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ImportYamlAsync" Disabled="busy" Class="mt-2 ml-2">Als neues Prüfsystem importieren</MudButton>
+
+                    <MudDivider Class="my-4" />
+                    <MudText Typo="Typo.h6">devices.json (VISA-Adressen)</MudText>
+                    <MudText Typo="Typo.body2">
+                        Liegt auf dem Prüf-PC eine <code>devices.json</code> neben <code>Testpilot.Operator.exe</code>, gelten dort deren
+                        VISA-Adressen statt der hier gespeicherten (Alias = Gerätekennung). „devices.json erzeugen“ schreibt die Adressen
+                        dieses Prüfsystems in das Textfeld; „Adressen übernehmen“ speichert die Adressen aus dem Textfeld bei diesem Prüfsystem.
+                    </MudText>
+                    <MudTextField Label="devices.json" @bind-Value="devicesJsonText" Lines="8" Sizing="InputSizing.Auto" Class="mt-2" />
+                    <MudButton Variant="Variant.Outlined" OnClick="ExportDevicesJson" Disabled="busy" Class="mt-2">devices.json erzeugen</MudButton>
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="ImportDevicesJsonAsync" Disabled="busy" Class="mt-2 ml-2">Adressen übernehmen</MudButton>
                 }
             </MudPaper>
         </MudItem>
@@ -282,6 +297,7 @@
     private string connectionJson = "{}";
     private Guid? editingDeviceId;
     private string yamlText = "";
+    private string devicesJsonText = "";
     private string? errorMessage;
     private bool busy;
 
@@ -459,19 +475,9 @@
             return;
         }
         var template = stations.SingleOrDefault(station => station.Id == templateStationId);
-        var station = new Station
-        {
-            Name = name,
-            TestSystemTypeId = newStationTypeId,
-            Description = template?.Description ?? ""
-        };
-        foreach (var device in template?.Devices ?? [])
-            station.Devices.Add(new StationDevice
-            {
-                DeviceKey = device.DeviceKey,
-                Driver = device.Driver,
-                ConnectionParametersJson = device.ConnectionParametersJson
-            });
+        var station = template is null
+            ? new Station { Name = name, TestSystemTypeId = newStationTypeId }
+            : StationCopy.Copy(template, name, newStationTypeId);
         await using (var db = await DbFactory.CreateDbContextAsync())
         {
             db.Stations.Add(station);
@@ -482,6 +488,22 @@
         await ShowStationAsync(station.Id);
         if (template is not null)
             Snackbar.Add($"Geräte von {template.Name} übernommen. Bitte die Adressen prüfen.", Severity.Info);
+    });
+
+    /// <summary>Copies the saved state of the selected station (unsaved edits are not copied) and shows the copy.</summary>
+    private Task DuplicateStationAsync() => RunAsync(async () =>
+    {
+        if (selectedStation is null) return;
+        var source = selectedStation;
+        var copy = StationCopy.Copy(source, StationCopy.NextFreeName(source.Name, stations.Select(station => station.Name)),
+            source.TestSystemTypeId);
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            db.Stations.Add(copy);
+            await db.SaveChangesAsync();
+        }
+        await ShowStationAsync(copy.Id);
+        Snackbar.Add($"{copy.Name} als Kopie von {source.Name} angelegt. Bitte Name und Adressen prüfen.", Severity.Info);
     });
 
     private Task SelectStationAsync(Guid id) => RunAsync(() => ShowStationAsync(id));
@@ -663,6 +685,31 @@
         }
         await ShowStationAsync(imported.Id);
         Snackbar.Add("Prüfsystem importiert.", Severity.Success);
+    });
+
+    private void ExportDevicesJson()
+    {
+        if (selectedStation is null || busy) return;
+        devicesJsonText = StationDevicesFile.Export(selectedStation);
+        errorMessage = null;
+    }
+
+    private Task ImportDevicesJsonAsync() => RunAsync(async () =>
+    {
+        if (selectedStation is null) return;
+        IReadOnlyList<string> updated;
+        IReadOnlyList<string> unknown;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            var station = await db.Stations.Include(item => item.Devices).SingleOrDefaultAsync(item => item.Id == selectedStation.Id)
+                ?? throw new InvalidOperationException("Das Prüfsystem wurde zwischenzeitlich gelöscht. Bitte neu laden.");
+            (updated, unknown) = StationDevicesFile.Apply(station, devicesJsonText);
+            await db.SaveChangesAsync();
+        }
+        await ReloadAsync(selectedStation.Id);
+        Snackbar.Add(updated.Count == 0 ? "Keine Adresse geändert." : $"Adressen übernommen: {string.Join(", ", updated)}.", Severity.Success);
+        if (unknown.Count != 0)
+            Snackbar.Add($"Nicht an diesem Prüfsystem eingetragen und ignoriert: {string.Join(", ", unknown)}", Severity.Warning);
     });
 
     private void ShowError(string message)

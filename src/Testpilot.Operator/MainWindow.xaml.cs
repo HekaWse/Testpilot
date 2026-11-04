@@ -20,7 +20,14 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         viewModel.SerialNumberFocusRequested += (_, _) => FocusLater(SerialBox);
         viewModel.RunFinished += OnRunFinished;
-        Loaded += (_, _) => FocusLater(string.IsNullOrWhiteSpace(viewModel.OperatorName) ? OperatorBox : FaufBox);
+        viewModel.DebugLoginRequested += (_, _) => ShowDebugLogin();
+        Loaded += (_, _) => FocusLater(FaufBox);
+    }
+
+    private void ShowDebugLogin()
+    {
+        new DebugLoginWindow(viewModel) { Owner = this }.ShowDialog();
+        FocusLater(FaufBox);
     }
 
     protected override void OnClosing(CancelEventArgs e)

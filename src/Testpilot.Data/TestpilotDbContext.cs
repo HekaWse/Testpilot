@@ -16,9 +16,18 @@ public class TestpilotDbContext(DbContextOptions options) : DbContext(options)
     public DbSet<Run> Runs => Set<Run>();
     public DbSet<RunDevice> RunDevices => Set<RunDevice>();
     public DbSet<RunStepResult> RunStepResults => Set<RunStepResult>();
+    public DbSet<DebugUser> DebugUsers => Set<DebugUser>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
+        model.Entity<DebugUser>(entity =>
+        {
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.ShortName).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.PasswordHash).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.PasswordSalt).HasMaxLength(100).IsRequired();
+            entity.HasIndex(x => x.ShortName).IsUnique();
+        });
         model.Entity<TestSystemType>(entity =>
         {
             entity.Property(x => x.Id).ValueGeneratedNever();

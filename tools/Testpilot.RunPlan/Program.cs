@@ -48,7 +48,10 @@ try
         if (planKey is not null)
             mock.AddOrder(fauf, planKey);
     }
-    var preparation = new RunPreparation(database, sapClient, registry, simulationEnabled);
+    var (devicesFile, deviceAddresses) = DeviceAddressConfiguration.Load(configuration);
+    if (deviceAddresses is not null)
+        Console.WriteLine($"VISA-Adressen aus {devicesFile}");
+    var preparation = new RunPreparation(database, sapClient, registry, simulationEnabled, deviceAddresses);
     var prepared = arguments.PlanId is { } planId
         ? await preparation.PrepareForPlanAsync(arguments.Station, planId, fauf, cancellation.Token)
         : await preparation.PrepareForOrderAsync(arguments.Station, fauf, cancellation.Token);
@@ -56,7 +59,8 @@ try
     var host = new DriverHost(registry, loggerFactory);
 
     var serial = arguments.Serial ?? ReadRequired("Seriennummer");
-    var operatorName = arguments.Operator ?? ReadRequired("Bediener");
+    // Operators are not recorded; --operator only stores a debug short name with the run.
+    var operatorName = arguments.Operator ?? "";
     var exporter = new RunJsonExporter(
         configuration["Export:Directory"] ?? "exports", loggerFactory.CreateLogger<RunJsonExporter>());
     var customSteps = new CustomStepRegistry();
@@ -106,7 +110,7 @@ static (Guid? PlanId, string Station, string? Fauf, string? Serial, string? Oper
             continue;
         }
         if (value is not ("--plan" or "--station" or "--fauf" or "--serial" or "--operator") || index + 1 >= args.Length)
-            throw new ArgumentException("Verwendung: Testpilot.RunPlan --station <Name> [--plan <GUID>] [--fauf <FAUF>] [--serial <Nr>] [--operator <Name>] [--single-step]");
+            throw new ArgumentException("Verwendung: Testpilot.RunPlan --station <Name> [--plan <GUID>] [--fauf <FAUF>] [--serial <Nr>] [--operator <Kürzel>] [--single-step]");
         var argument = args[++index];
         switch (value)
         {

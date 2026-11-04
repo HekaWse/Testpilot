@@ -10,21 +10,20 @@ namespace Testpilot.Tests;
 public sealed class DriversPhase2Tests
 {
     [Theory]
-    [InlineData("34921A", "agilent-34980a-34921a")]
-    [InlineData("34937A", "agilent-34980a-34937a")]
-    public void AgilentModuleProfilesPreserveUnknownsInsteadOfInventingSpecifications(string model, string expectedId)
+    [InlineData("34921A", "agilent-34980a-34921a", 44)]
+    [InlineData("34937A", "agilent-34980a-34937a", 32)]
+    public void AgilentModuleProfilesAreCompleteAndKeepUnknownCommandsConservative(string model, string expectedId, int channels)
     {
-        var yaml = ReadEmbeddedProfile(model);
-        var profile = DeviceProfileLoader.Load(yaml);
+        var profile = DeviceProfileLoader.Load(ReadEmbeddedProfile(model));
         Assert.Equal(expectedId, profile.Id);
         Assert.Contains(model, profile.Model, StringComparison.Ordinal);
-        Assert.Null(profile.ChannelCount);
-        Assert.Empty(profile.Channels);
-        Assert.Contains("slot * 100 + channel", profile.ChannelNumbering, StringComparison.Ordinal);
-        Assert.Contains(profile.Todos, todo => todo.Contains(DeviceProfile.DataSheetTodo, StringComparison.Ordinal));
+        Assert.Equal(channels, profile.ChannelCount);
+        Assert.Equal(Enumerable.Range(1, channels), profile.Channels.Select(channel => channel.Number));
+        Assert.Contains("slot * 1000 + channel", profile.ChannelNumbering, StringComparison.Ordinal);
+        Assert.Empty(profile.Todos);
+        Assert.DoesNotContain(profile.SpecialCases, text => text.Contains(DeviceProfile.DataSheetTodo, StringComparison.Ordinal));
         Assert.True(profile.DefaultChannelState.UnknownCommandInvalidatesAll);
         Assert.True(profile.DefaultChannelState.IsInvalidatedBy("unlisted-command", "range"));
-        Assert.Empty(profile.DefaultChannelState.Settings);
     }
 
     [Fact]

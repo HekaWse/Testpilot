@@ -9,6 +9,7 @@ public static class StandardDrivers
         .AddSeggerJFlashCli()
         .AddHmpScpi()
         .AddAg34980Scpi()
+        .AddAg34970Scpi()
         .AddHmpDll()
         .AddAg34980Dll()
         .AddVisaGeneric()

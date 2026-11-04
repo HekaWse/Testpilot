@@ -1,17 +1,225 @@
+# Keysight 34921A 40-channel armature multiplexer with 4 current channels.
+# Source: Keysight 34921A-34925A User's Guide 9018-02147 (pages 18, 21-27, 86-87).
 id: agilent-34980a-34921a
 model: "34980A with 34921A module"
-channelCount: null
-channelNumbering: "module channel 1..n; in the 34980A: slot * 100 + channel (for example 1003)"
-capabilities: []
-channels: []
+channelCount: 44
+channelNumbering: "module channel 1..44; in the 34980A: slot * 1000 + channel (sccc, for example 1003 = slot 1 channel 3)"
+capabilities: [SwitchMultimeter]
+# The 34980A keeps the measurement configuration per channel (CONF ... ,(@sccc)).
+# Relay commands are treated conservatively: they invalidate the configuration of the channel.
 state:
-  settings: []
-  invalidatedByCommand: {}
+  settings: [function, range, nplc]
+  invalidatedByCommand:
+    relay: ["*"]
+    configure: []
+    measure: []
   unknownCommandInvalidatesAll: true
+channels:
+  - number: 1
+    name: "CH01 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 21
+  - number: 2
+    name: "CH02 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 22
+  - number: 3
+    name: "CH03 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 23
+  - number: 4
+    name: "CH04 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 24
+  - number: 5
+    name: "CH05 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 25
+  - number: 6
+    name: "CH06 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 26
+  - number: 7
+    name: "CH07 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 27
+  - number: 8
+    name: "CH08 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 28
+  - number: 9
+    name: "CH09 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 29
+  - number: 10
+    name: "CH10 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 30
+  - number: 11
+    name: "CH11 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 31
+  - number: 12
+    name: "CH12 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 32
+  - number: 13
+    name: "CH13 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 33
+  - number: 14
+    name: "CH14 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 34
+  - number: 15
+    name: "CH15 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 35
+  - number: 16
+    name: "CH16 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 36
+  - number: 17
+    name: "CH17 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 37
+  - number: 18
+    name: "CH18 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 38
+  - number: 19
+    name: "CH19 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 39
+  - number: 20
+    name: "CH20 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 40
+  - number: 21
+    name: "CH21 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 22
+    name: "CH22 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 23
+    name: "CH23 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 24
+    name: "CH24 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 25
+    name: "CH25 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 26
+    name: "CH26 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 27
+    name: "CH27 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 28
+    name: "CH28 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 29
+    name: "CH29 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 30
+    name: "CH30 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 31
+    name: "CH31 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 32
+    name: "CH32 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 33
+    name: "CH33 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 34
+    name: "CH34 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 35
+    name: "CH35 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 36
+    name: "CH36 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 37
+    name: "CH37 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 38
+    name: "CH38 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 39
+    name: "CH39 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 40
+    name: "CH40 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 41
+    name: "CH41 (Strom, abgesichert)"
+    type: Current
+    supportedFunctions: [CURR:DC, CURR:AC]
+  - number: 42
+    name: "CH42 (Strom, abgesichert)"
+    type: Current
+    supportedFunctions: [CURR:DC, CURR:AC]
+  - number: 43
+    name: "CH43 (Strom, abgesichert)"
+    type: Current
+    supportedFunctions: [CURR:DC, CURR:AC]
+  - number: 44
+    name: "CH44 (Strom, abgesichert)"
+    type: Current
+    supportedFunctions: [CURR:DC, CURR:AC]
 specialCases:
-  - "TODO: aus Datenblatt prüfen — Kanaltypen und Stromkanäle"
-  - "TODO: aus Datenblatt prüfen — 4-Draht-Kanalpaare und Kanalbelegung"
-todos:
-  - "TODO: aus Datenblatt prüfen — Anzahl und Nummerierung der Kanäle"
-  - "TODO: aus Datenblatt prüfen — Kanaltypen, Funktionen und Sonderfälle"
-  - "TODO: aus Datenblatt prüfen — Wertebereiche und Kanalkonfigurationen"
+  - "Zwei Bänke mit je 20 Armature-Relais: Kanal 1-20 (Bank 1), 21-40 (Bank 2) (User's Guide S. 25)."
+  - "4-Draht (FRES) nur auf Kanal 1-20: das Gerät koppelt Kanal n (Source) automatisch mit Kanal n+20 (Sense) (S. 25)."
+  - "Direkte Strommessung (AC/DC) nur auf den abgesicherten Kanälen 41-44, make-before-break; andere Kanäle brauchen externe Shunts (S. 18, 25)."
+  - "Strom und Spannung können auf ABus1 nicht gleichzeitig gemessen werden (S. 25)."
+  - "Analog-Bus-Relais 911-914, 921-924 und 931 (931 = Stromeingang des DMM) sind keine Messkanäle und hier nicht als Kanäle geführt (S. 25)."
+  - "Safety-Interlock: Pins 17 und 33 der D-Sub-Stecker von Bank 1 und Bank 2 müssen gebrückt sein, sonst öffnen die Analog-Bus-Relais (S. 19, 27)."
+  - "Läuft ein Scan, führt das Schließen eines weiteren Kanals derselben Bank zu einem Fehler (S. 21)."
+  - "Grenzen Verschmutzungsgrad 1: ±300 Vrms/VDC; Verschmutzungsgrad 2: ±100 Vrms/VDC; 1 A schalten / 2 A tragen; 60 VA pro Kanal; max. 6 W Verlustleistung pro Modul; Transienten 1000 Vpk (S. 86-87)."
+  - "Die Messbereiche gehören zum internen DMM des 34980A und sind im Modulprofil nicht begrenzt."
+  - "Sicherungswerte der Stromkanäle stehen nur im 34980A Service Guide (S. 25)."
+todos: []

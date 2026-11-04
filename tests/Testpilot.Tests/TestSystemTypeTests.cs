@@ -19,14 +19,20 @@ public sealed class TestSystemTypeTests
     private const string MeterParameters = "{\"channels\":[1003],\"readings\":{\"1003|VOLT:DC\":3.3}}";
 
     [Fact]
-    public void MainframeProfileIsComposedFromSlotModulesWithPrefixedTodos()
+    public void MainframeProfileIsComposedFromSlotModules()
     {
         var profile = DeviceCatalog.CreateProfile("34980A", "{\"slots\":{\"3\":\"34937A\",\"1\":\"34921A\"}}");
 
         Assert.Contains(DeviceCapability.SwitchMultimeter, profile.Capabilities);
-        Assert.Contains("slot * 100 + channel", profile.ChannelNumbering, StringComparison.Ordinal);
-        Assert.Contains(profile.Todos, todo => todo.StartsWith("Slot 1 (34921A): ", StringComparison.Ordinal));
-        Assert.Contains(profile.Todos, todo => todo.StartsWith("Slot 3 (34937A): ", StringComparison.Ordinal));
+        Assert.Contains("slot * 1000 + channel", profile.ChannelNumbering, StringComparison.Ordinal);
+        Assert.Equal(44 + 32, profile.ChannelCount);
+        Assert.Equal(1001, profile.Channels.First().Number);
+        Assert.Equal(3032, profile.Channels.Last().Number);
+        Assert.Equal(1021, profile.GetChannel(1001).FourWireSenseChannel);
+        Assert.StartsWith("Slot 3 (34937A) ", profile.GetChannel(3029).Name, StringComparison.Ordinal);
+        Assert.Empty(profile.Todos);
+        Assert.Contains(profile.SpecialCases, text => text.StartsWith("Slot 1 (34921A): ", StringComparison.Ordinal));
+        Assert.Contains(profile.SpecialCases, text => text.StartsWith("Slot 3 (34937A): ", StringComparison.Ordinal));
         Assert.Equal("34980A: Slot 1 34921A, Slot 3 34937A",
             DeviceCatalog.Describe("34980A", "{\"slots\":{\"3\":\"34937A\",\"1\":\"34921A\"}}"));
         Assert.Equal("{\"slots\":{\"1\":\"34921A\",\"3\":\"34937A\"}}",

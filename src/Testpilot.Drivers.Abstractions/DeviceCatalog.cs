@@ -9,6 +9,8 @@ namespace Testpilot.Drivers.Abstractions;
 /// <para><see cref="ModuleSlotCount"/>: the device is a mainframe; its channels come from the modules in the slots.</para>
 /// <para><see cref="ChannelsFromOptions"/>: the channel list is given in the system device options (simulated models).</para>
 /// <para><see cref="ConnectionModelOption"/>: real drivers must be configured with this "model" connection option.</para>
+/// <para><see cref="SlotChannelFactor"/>: channel numbers of a mainframe are slot * factor + module channel
+/// (34980A: 1000, for example 1003; 34970A: 100, for example 103).</para>
 /// </summary>
 public sealed record DeviceModel(
     string Name,
@@ -20,7 +22,8 @@ public sealed record DeviceModel(
     int ModuleSlotCount = 0,
     IReadOnlyList<string>? Modules = null,
     bool ChannelsFromOptions = false,
-    string? ConnectionModelOption = null)
+    string? ConnectionModelOption = null,
+    int SlotChannelFactor = 1000)
 {
     /// <summary>Real drivers plus the simulated driver that may be bound at a station.</summary>
     public IReadOnlyList<string> AllowedDrivers => [.. Drivers, SimulatedDriver];
@@ -52,12 +55,16 @@ public sealed record SystemTypeDeviceOptions(IReadOnlyDictionary<int, string> Sl
 public static class DeviceCatalog
 {
     public const string Ag34980A = "34980A";
+    public const string Ag34970A = "34970A";
 
     public static IReadOnlyList<DeviceModel> Models { get; } =
     [
         new(Ag34980A, "Keysight 34980A Schaltmultimeter mit Modulen", DeviceCapability.SwitchMultimeter,
             ["Ag34980Scpi", "Ag34980Dll"], "SimulatedSwitchMultimeter",
             ModuleSlotCount: 8, Modules: ["34921A", "34937A"]),
+        new(Ag34970A, "Keysight/Agilent 34970A Datenerfassung mit Modulen", DeviceCapability.SwitchMultimeter,
+            ["Ag34970Scpi"], "SimulatedSwitchMultimeter",
+            ModuleSlotCount: 3, Modules: ["34901A", "34903A", "34907A"], SlotChannelFactor: 100),
         new("HMP2020", "R&S HMP2020 Netzteil", DeviceCapability.PowerSupply, ["HmpScpi", "HmpDll"],
             "SimulatedPowerSupply", ProfileFile: "HMP2020.yaml", ConnectionModelOption: "HMP2020"),
         new("HMP2030", "R&S HMP2030 Netzteil", DeviceCapability.PowerSupply, ["HmpScpi", "HmpDll"],
@@ -236,8 +243,8 @@ public static class DeviceCatalog
     }
 
     /// <summary>
-    /// Mainframe profile from the module profiles: module channel n in slot s becomes channel s * 100 + n
-    /// (34980A numbering, for example slot 1 channel 3 = 1003). Module TODOs are kept with the slot as prefix.
+    /// Mainframe profile from the module profiles: module channel n in slot s becomes channel s * factor + n
+    /// (34980A: slot 1 channel 3 = 1003; 34970A: slot 1 channel 3 = 103). Module TODOs are kept with the slot as prefix.
     /// </summary>
     private static DeviceProfile ComposeModules(DeviceModel model, IReadOnlyDictionary<int, string> slots)
     {
@@ -248,18 +255,20 @@ public static class DeviceCatalog
         foreach (var (slot, moduleName) in slots.OrderBy(slot => slot.Key))
         {
             var module = EmbeddedProfiles.Load(moduleName + ".yaml");
-            var offset = slot * 100;
+            var offset = slot * model.SlotChannelFactor;
             var prefix = $"Slot {slot} ({moduleName})";
             allCountsKnown &= module.ChannelCount.HasValue;
             foreach (var channel in module.Channels)
             {
-                if (channel.Number >= 100)
-                    throw new InvalidDataException($"Module profile {moduleName} has channel {channel.Number}; only 1..99 fit into slot * 100 + channel.");
+                if (channel.Number >= model.SlotChannelFactor)
+                    throw new InvalidDataException(
+                        $"Module profile {moduleName} has channel {channel.Number}; only 1..{model.SlotChannelFactor - 1} fit into slot * {model.SlotChannelFactor} + channel.");
                 channels.Add(channel with
                 {
                     Number = offset + channel.Number,
                     Name = $"{prefix} {channel.Name}",
-                    ConflictsWithChannels = channel.ConflictsWithChannels?.Select(number => offset + number).ToHashSet()
+                    ConflictsWithChannels = channel.ConflictsWithChannels?.Select(number => offset + number).ToHashSet(),
+                    FourWireSenseChannel = channel.FourWireSenseChannel + offset
                 });
             }
             specialCases.AddRange(module.SpecialCases.Select(text => $"{prefix}: {text}"));
@@ -269,7 +278,8 @@ public static class DeviceCatalog
             new Dictionary<string, IReadOnlySet<string>>(StringComparer.Ordinal), UnknownCommandInvalidatesAll: true);
         var description = string.Join(", ", slots.OrderBy(slot => slot.Key).Select(slot => $"Slot {slot.Key} {slot.Value}"));
         return new DeviceProfile($"{model.Name.ToLowerInvariant()}-system", $"{model.Name} ({description})",
-            allCountsKnown ? channels.Count : null, "slot * 100 + channel (for example 1003)",
+            allCountsKnown ? channels.Count : null,
+            $"slot * {model.SlotChannelFactor} + channel (for example {model.SlotChannelFactor + 3} = slot 1 channel 3)",
             new HashSet<DeviceCapability> { model.Capability }, defaultState, channels, specialCases, todos);
     }
 }

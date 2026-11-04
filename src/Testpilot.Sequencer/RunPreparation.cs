@@ -14,21 +14,23 @@ namespace Testpilot.Sequencer;
 /// <summary>A run that is ready to start: station, order and the frozen execution plan.</summary>
 public sealed record PreparedRun(string Station, string Fauf, OrderInfo Order, ExecutionPlan Plan, bool Simulated)
 {
-    public RunContext CreateContext(string serialNumber, string operatorName, bool singleStepMode = false) =>
+    /// <param name="operatorName">Operators are not recorded; only the short name of a debug login is stored here (otherwise empty).</param>
+    public RunContext CreateContext(string serialNumber, string operatorName = "", bool singleStepMode = false) =>
         new(Fauf, serialNumber, Station, operatorName, singleStepMode, Simulated);
 
     public override string ToString() =>
-        $"FAUF {Fauf}: {Plan.ArtNr}/{Plan.Fz} version {Plan.PlanVersion} on '{Station}'{(Simulated ? " (simulation)" : "")}";
+        $"FAUF {Fauf}: {Plan.ArtNr}/{Plan.Fz}{(Order.Description.Length > 0 ? $" ({Order.Description})" : "")} version {Plan.PlanVersion} on '{Station}'{(Simulated ? " (simulation)" : "")}";
 }
 
 /// <summary>
 /// UI-independent preparation of a run, shared by Testpilot.RunPlan and the operator UI:
 /// FAUF -> SAP order (ArtNr/Fz) -> released plan -> frozen execution plan -> checked against the station.
 /// With simulation enabled, every device is replaced by a simulated driver.
+/// <paramref name="deviceAddresses"/> (devices.json of this PC) replaces the VISA resources stored at the station.
 /// Messages are German because they are shown to the operator.
 /// </summary>
 public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapClient, DriverRegistry registry,
-    bool simulationEnabled)
+    bool simulationEnabled, IReadOnlyDictionary<string, string>? deviceAddresses = null)
 {
     /// <summary>Operator flow: the released plan is found from the article number and FZ of the SAP order.</summary>
     public async Task<PreparedRun> PrepareForOrderAsync(string stationName, string fauf,
@@ -65,9 +67,27 @@ public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapCl
     private async Task<Station> LoadStationAsync(string stationName, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stationName);
-        return await database.Stations.AsNoTracking().Include(station => station.Devices)
+        var station = await database.Stations.AsNoTracking().Include(station => station.Devices)
             .SingleOrDefaultAsync(station => station.Name == stationName, cancellationToken)
             ?? throw new InvalidOperationException($"Prüfsystem '{stationName}' wurde nicht gefunden. Bitte im Editor unter „Prüfsysteme“ anlegen.");
+        ApplyDeviceAddresses(station, deviceAddresses);
+        return station;
+    }
+
+    /// <summary>
+    /// Replaces the VISA resources of the station devices listed in devices.json. Only for a station loaded without
+    /// change tracking: the database keeps its addresses. Returns the aliases that match no device of the station.
+    /// </summary>
+    public static IReadOnlyList<string> ApplyDeviceAddresses(Station station, IReadOnlyDictionary<string, string>? addresses)
+    {
+        ArgumentNullException.ThrowIfNull(station);
+        if (addresses is null)
+            return [];
+        foreach (var device in station.Devices)
+            device.ConnectionParametersJson = DeviceAddressFile.Apply(addresses, device.DeviceKey, device.Driver, device.ConnectionParametersJson);
+        return addresses.Keys
+            .Where(alias => !station.Devices.Any(device => StringComparer.OrdinalIgnoreCase.Equals(device.DeviceKey, alias)))
+            .Order(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private async Task<PreparedRun> PrepareAsync(Station station, string fauf, OrderInfo order, TestPlan storedPlan,
@@ -80,7 +100,7 @@ public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapCl
             || !StringComparer.Ordinal.Equals(plan.Fz, storedPlan.Fz))
             throw new InvalidDataException("Der gespeicherte Ausführungsplan passt nicht zum Prüfplan.");
 
-        Dictionary<string, string>? systemModels = null;
+        Dictionary<string, SystemTypeDevice>? systemDevices = null;
         if (storedPlan.TestSystemTypeId is { } systemId)
         {
             if (station.TestSystemTypeId != systemId)
@@ -90,8 +110,8 @@ public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapCl
                 throw new InvalidOperationException(
                     $"Der Prüfplan ist für Prüfsystemtyp '{planSystem}', Prüfsystem '{station.Name}' gehört aber zu '{stationSystem}'.");
             }
-            systemModels = await database.SystemTypeDevices.AsNoTracking().Where(device => device.TestSystemTypeId == systemId)
-                .ToDictionaryAsync(device => device.DeviceKey, device => device.Model, StringComparer.Ordinal, cancellationToken);
+            systemDevices = await database.SystemTypeDevices.AsNoTracking().Where(device => device.TestSystemTypeId == systemId)
+                .ToDictionaryAsync(device => device.DeviceKey, StringComparer.Ordinal, cancellationToken);
         }
 
         var stationDevices = station.Devices.ToDictionary(device => device.DeviceKey, StringComparer.Ordinal);
@@ -102,7 +122,7 @@ public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapCl
 
         var boundPlan = plan with
         {
-            Devices = plan.Devices.Select(device => Bind(device, stationDevices[device.DeviceKey], station.Name, systemModels)).ToArray()
+            Devices = plan.Devices.Select(device => Bind(device, stationDevices[device.DeviceKey], station.Name, systemDevices)).ToArray()
         };
         var runPlan = simulationEnabled ? SimulatedDriverMapping.Apply(boundPlan) : boundPlan;
         // Creating every driver profile validates all connection parameters before any device is touched.
@@ -131,14 +151,16 @@ public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapCl
     /// <summary>
     /// Plans written against a test system type only contain the device model; the station provides driver and connection.
     /// Older plans already contain a driver and are used unchanged.
+    /// A mainframe (34980A) gets the module slots of the test system type unless the station sets slots or profilePath.
     /// </summary>
     private static ExecutionDevice Bind(ExecutionDevice device, StationDevice stationDevice, string stationName,
-        IReadOnlyDictionary<string, string>? systemModels)
+        IReadOnlyDictionary<string, SystemTypeDevice>? systemDevices)
     {
         if (device.Model is null)
             return device;
-        if (systemModels is not null
-            && (!systemModels.TryGetValue(device.DeviceKey, out var systemModel) || systemModel != device.Model))
+        SystemTypeDevice? systemDevice = null;
+        if (systemDevices is not null
+            && (!systemDevices.TryGetValue(device.DeviceKey, out systemDevice) || systemDevice.Model != device.Model))
             throw new InvalidOperationException(
                 $"Gerät '{device.DeviceKey}' ({device.Model}) ist nicht mehr so im Prüfsystemtyp vorhanden. Der Prüfsystemtyp wurde nach der Freigabe geändert; bitte den Plan neu freigeben.");
         try
@@ -149,7 +171,21 @@ public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapCl
         {
             throw new InvalidOperationException($"Prüfsystem '{stationName}': {exception.Message}", exception);
         }
-        return device with { Driver = stationDevice.Driver, ConnectionParametersJson = stationDevice.ConnectionParametersJson };
+        var connection = stationDevice.ConnectionParametersJson;
+        var model = DeviceCatalog.Get(device.Model);
+        if (systemDevice is not null && model.ModuleSlotCount > 0 && stationDevice.Driver != model.SimulatedDriver)
+            connection = AddModuleSlots(connection, DeviceCatalog.ParseOptions(model.Name, systemDevice.OptionsJson));
+        return device with { Driver = stationDevice.Driver, ConnectionParametersJson = connection };
+    }
+
+    private static string AddModuleSlots(string connectionParametersJson, SystemTypeDeviceOptions options)
+    {
+        if (JsonNode.Parse(connectionParametersJson) is not JsonObject connection
+            || connection.Any(property => property.Key.Equals("slots", StringComparison.OrdinalIgnoreCase)
+                || property.Key.Equals("profilePath", StringComparison.OrdinalIgnoreCase)))
+            return connectionParametersJson;
+        connection["slots"] = JsonNode.Parse(options.ToJson())!["slots"]!.DeepClone();
+        return connection.ToJsonString();
     }
 
     private async Task<string> SystemNameAsync(Guid id, CancellationToken cancellationToken) =>
@@ -157,32 +193,65 @@ public sealed class RunPreparation(TestpilotDbContext database, ISapClient sapCl
             .SingleOrDefaultAsync(cancellationToken) ?? id.ToString();
 }
 
-/// <summary>Creates the SAP client from configuration (Sap:Command for the external program, otherwise the mock).</summary>
-public static class SapClientFactory
+/// <summary>Reads the optional devices.json of this PC (setting <c>DevicesFile</c>).</summary>
+public static class DeviceAddressConfiguration
 {
     /// <summary>
-    /// <c>Sap:Command</c> + <c>Sap:ArgumentsJson</c> select <see cref="ExternalProgramSapClient"/>
-    /// (<c>Sap:TimeoutSeconds</c>, default 30).
-    /// Without a command, a <see cref="MockSapClient"/> is filled from <c>Sap:MockOrders:&lt;FAUF&gt;:ArtNr/Fz</c>.
+    /// <c>DevicesFile</c> empty: <c>devices.json</c> next to the executable, if present. Set: this file must exist;
+    /// a relative path is relative to the executable. Returns the full path and the addresses (null without file).
+    /// </summary>
+    public static (string Path, IReadOnlyDictionary<string, string>? Addresses) Load(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        var configured = configuration["DevicesFile"];
+        var path = Path.GetFullPath(string.IsNullOrWhiteSpace(configured) ? DeviceAddressFile.DefaultFileName : configured.Trim(),
+            AppContext.BaseDirectory);
+        var addresses = DeviceAddressFile.Load(path);
+        if (addresses is null && !string.IsNullOrWhiteSpace(configured))
+            throw new InvalidOperationException($"DevicesFile: Datei '{path}' wurde nicht gefunden.");
+        return (path, addresses);
+    }
+}
+
+/// <summary>Creates the SAP client from configuration: REST API, external program or mock.</summary>
+public static class SapClientFactory
+{
+    // One client for the process; the per-request timeout is applied by SapRestClient.
+    private static readonly HttpClient SharedHttpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
+
+    /// <summary>
+    /// <c>Sap:BaseUrl</c> (for example <c>https://prod.heka.de/sapapi/</c>) selects <see cref="SapRestClient"/>.
+    /// Otherwise <c>Sap:Command</c> + <c>Sap:ArgumentsJson</c> select <see cref="ExternalProgramSapClient"/>.
+    /// Both use <c>Sap:TimeoutSeconds</c> (default 30). Without both, a <see cref="MockSapClient"/> is filled from
+    /// <c>Sap:MockOrders:&lt;FAUF&gt;:ArtNr/Fz/Description</c>.
     /// </summary>
     public static ISapClient Create(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+        var timeoutText = configuration["Sap:TimeoutSeconds"];
+        var timeoutSeconds = 30;
+        if (!string.IsNullOrWhiteSpace(timeoutText) && (!int.TryParse(timeoutText, out timeoutSeconds) || timeoutSeconds is < 1 or > 600))
+            throw new InvalidOperationException("Sap:TimeoutSeconds muss eine Zahl zwischen 1 und 600 sein.");
+        var timeout = TimeSpan.FromSeconds(timeoutSeconds);
+
+        var baseUrl = configuration["Sap:BaseUrl"];
+        if (!string.IsNullOrWhiteSpace(baseUrl))
+        {
+            if (!Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri))
+                throw new InvalidOperationException($"Sap:BaseUrl '{baseUrl}' ist keine gültige Adresse.");
+            return new SapRestClient(SharedHttpClient, uri, timeout);
+        }
         var command = configuration["Sap:Command"];
         if (!string.IsNullOrWhiteSpace(command))
         {
             var argumentsJson = configuration["Sap:ArgumentsJson"] ?? "[\"{fauf}\"]";
             var arguments = JsonSerializer.Deserialize<string[]>(argumentsJson)
                 ?? throw new JsonException("Sap:ArgumentsJson must be a JSON string array.");
-            var timeoutText = configuration["Sap:TimeoutSeconds"];
-            var timeoutSeconds = 30;
-            if (!string.IsNullOrWhiteSpace(timeoutText) && (!int.TryParse(timeoutText, out timeoutSeconds) || timeoutSeconds is < 1 or > 600))
-                throw new InvalidOperationException("Sap:TimeoutSeconds muss eine Zahl zwischen 1 und 600 sein.");
-            return new ExternalProgramSapClient(command, arguments, TimeSpan.FromSeconds(timeoutSeconds));
+            return new ExternalProgramSapClient(command, arguments, timeout);
         }
         var mock = new MockSapClient();
         foreach (var order in configuration.GetSection("Sap:MockOrders").GetChildren())
-            mock.AddOrder(order.Key, new OrderInfo(order["ArtNr"] ?? "", order["Fz"] ?? ""));
+            mock.AddOrder(order.Key, new OrderInfo(order["ArtNr"] ?? "", order["Fz"] ?? "", order["Description"] ?? ""));
         return mock;
     }
 }

@@ -7,7 +7,7 @@ namespace Testpilot.Sap;
 
 /// <summary>
 /// Calls the existing SAP program (read-only). <c>{fauf}</c> in the arguments is replaced by the FAUF; the program
-/// writes <c>{"artNr":"...","fz":"..."}</c> to stdout. Batch files are rejected because cmd.exe would interpret the FAUF.
+/// writes <c>{"artNr":"...","fz":"...","description":"..."}</c> to stdout (description optional). Batch files are rejected because cmd.exe would interpret the FAUF.
 /// </summary>
 public sealed class ExternalProgramSapClient(string command, IReadOnlyList<string> arguments, TimeSpan? timeout = null)
     : ISapClient

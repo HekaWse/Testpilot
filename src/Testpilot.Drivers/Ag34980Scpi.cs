@@ -30,14 +30,7 @@ internal sealed class Ag34980Scpi : ISwitchMultimeter
     {
         this.visaSessionFactory = visaSessionFactory;
         options = ParseOptions(configuration);
-        var profilePath = Path.GetFullPath(options.ProfilePath);
-        if (!File.Exists(profilePath)) throw new FileNotFoundException("The configured 34980A module profile was not found.", profilePath);
-        Profile = DeviceProfileLoader.Load(File.ReadAllText(profilePath));
-        if (!Profile.Capabilities.Contains(DeviceCapability.SwitchMultimeter))
-            throw new InvalidDataException("The configured 34980A profile does not declare the SwitchMultimeter capability.");
-        if (!Profile.Channels.Any()) throw new InvalidDataException("The configured 34980A module profile must define verified channels.");
-        if (Profile.SpecialCases.Concat(Profile.Todos).Any(note => note.Contains(DeviceProfile.DataSheetTodo, StringComparison.Ordinal)))
-            throw new InvalidDataException("The configured 34980A module profile still contains unresolved data-sheet TODOs.");
+        Profile = MainframeProfileSource.Load("Ag34980Scpi", DeviceCatalog.Ag34980A, options.ProfilePath, options.Slots);
     }
 
     public DeviceProfile Profile { get; }
@@ -210,12 +203,10 @@ internal sealed class Ag34980Scpi : ISwitchMultimeter
         ArgumentNullException.ThrowIfNull(configuration);
         var input = JsonSerializer.Deserialize<Ag34980OptionsInput>(configuration.ConnectionParameters, JsonOptions)
             ?? throw new JsonException("34980A connection parameters must be a JSON object.");
-        if (string.IsNullOrWhiteSpace(input.ProfilePath))
-            throw new JsonException("34980A profilePath is required.");
         var endpoint = ScpiEndpoint.Parse("34980A", input.Host, input.Port, input.Resource);
         if (input.TimeoutMilliseconds is < 1 or > 120_000)
             throw new JsonException("34980A timeoutMilliseconds must be between 1 and 120000.");
-        return new Ag34980Options(endpoint, input.ProfilePath, input.TimeoutMilliseconds, input.ResetOnConnect);
+        return new Ag34980Options(endpoint, input.ProfilePath, input.Slots, input.TimeoutMilliseconds, input.ResetOnConnect);
     }
 
     private sealed class Ag34980OptionsInput
@@ -223,12 +214,14 @@ internal sealed class Ag34980Scpi : ISwitchMultimeter
         public string? Host { get; init; }
         public int Port { get; init; } = 5025;
         public string? Resource { get; init; }
-        public string ProfilePath { get; init; } = "";
+        public string? ProfilePath { get; init; }
+        public Dictionary<string, string>? Slots { get; init; }
         public int TimeoutMilliseconds { get; init; } = 5000;
         public bool ResetOnConnect { get; init; } = true;
     }
 
-    private sealed record Ag34980Options(ScpiEndpoint Endpoint, string ProfilePath, int TimeoutMilliseconds, bool ResetOnConnect);
+    private sealed record Ag34980Options(ScpiEndpoint Endpoint, string? ProfilePath, IReadOnlyDictionary<string, string>? Slots,
+        int TimeoutMilliseconds, bool ResetOnConnect);
 }
 
 public static class Ag34980ScpiRegistration

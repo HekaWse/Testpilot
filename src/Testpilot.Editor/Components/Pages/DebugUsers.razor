@@ -1,0 +1,121 @@
+@page "/debug-users"
+@inject IDbContextFactory<TestpilotDbContext> DbFactory
+@inject ISnackbar Snackbar
+
+<PageTitle>Debug-Berechtigungen</PageTitle>
+<MudContainer MaxWidth="MaxWidth.Medium">
+    <MudText Typo="Typo.h4" GutterBottom="true">Debug-Berechtigungen</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4">
+        Wer hier mit Kürzel und Passwort eingetragen ist, kann im Bedienprogramm den Debugmodus aktivieren und dann
+        im Einzelschritt prüfen. Das Kürzel wird zum Prüflauf gespeichert. Gespeichert wird nur ein Hash des Passworts;
+        ein vergessenes Passwort wird einfach neu gesetzt.
+    </MudText>
+    @if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@errorMessage</MudAlert>
+    }
+    <MudPaper Class="pa-4 mb-4">
+        <MudText Typo="Typo.h6">Berechtigung anlegen oder Passwort ändern</MudText>
+        <MudGrid Spacing="2" Class="mt-1">
+            <MudItem xs="12" sm="4"><MudTextField Label="Kürzel (z. B. WSE)" @bind-Value="shortName" MaxLength="20" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField Label="Passwort" @bind-Value="password" InputType="InputType.Password" /></MudItem>
+            <MudItem xs="12" sm="4"><MudTextField Label="Passwort wiederholen" @bind-Value="passwordRepeat" InputType="InputType.Password" /></MudItem>
+        </MudGrid>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SaveAsync" Disabled="busy" Class="mt-3">Speichern</MudButton>
+    </MudPaper>
+    <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h6">Berechtigte Personen</MudText>
+        @if (users.Count == 0)
+        {
+            <MudText Class="mt-2">Noch niemand eingetragen. Ohne Eintrag kann der Debugmodus nicht aktiviert werden.</MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Class="mt-2">
+                <thead><tr><th>Kürzel</th><th>Passwort zuletzt gesetzt (UTC)</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var user in users)
+                    {
+                        <tr>
+                            <td>@user.ShortName</td>
+                            <td>@user.UpdatedAt.UtcDateTime.ToString("dd.MM.yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture)</td>
+                            <td>
+                                @if (confirmDelete == user.ShortName)
+                                {
+                                    <MudButton Color="Color.Error" Variant="Variant.Filled" Size="Size.Small" OnClick="() => DeleteAsync(user.ShortName)" Disabled="busy">Wirklich entfernen</MudButton>
+                                    <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => confirmDelete = null">Abbrechen</MudButton>
+                                }
+                                else
+                                {
+                                    <MudButton Color="Color.Error" Variant="Variant.Text" Size="Size.Small" OnClick="() => confirmDelete = user.ShortName" Disabled="busy">Entfernen</MudButton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private IReadOnlyList<DebugUser> users = [];
+    private string shortName = "";
+    private string password = "";
+    private string passwordRepeat = "";
+    private string? confirmDelete;
+    private string? errorMessage;
+    private bool busy;
+
+    protected override Task OnInitializedAsync() => RunAsync(ReloadAsync);
+
+    private async Task ReloadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        users = await new DebugUserService(db).ListAsync();
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (busy) return;
+        busy = true;
+        errorMessage = null;
+        try
+        {
+            await action();
+        }
+        catch (Exception exception) when (EditorErrors.IsExpected(exception))
+        {
+            errorMessage = EditorErrors.ToGerman(exception);
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+
+    private Task SaveAsync() => RunAsync(async () =>
+    {
+        if (password != passwordRepeat)
+        {
+            errorMessage = "Die beiden Passwörter stimmen nicht überein.";
+            return;
+        }
+        var name = DebugUserService.NormalizeShortName(shortName);
+        var exists = users.Any(user => user.ShortName == name);
+        await using (var db = await DbFactory.CreateDbContextAsync())
+            await new DebugUserService(db).SetPasswordAsync(name, password);
+        shortName = password = passwordRepeat = "";
+        await ReloadAsync();
+        Snackbar.Add(exists ? $"Passwort für {name} geändert." : $"{name} darf jetzt den Debugmodus nutzen.", Severity.Success);
+    });
+
+    private Task DeleteAsync(string name) => RunAsync(async () =>
+    {
+        await using (var db = await DbFactory.CreateDbContextAsync())
+            await new DebugUserService(db).DeleteAsync(name);
+        confirmDelete = null;
+        await ReloadAsync();
+        Snackbar.Add($"Debug-Berechtigung von {name} entfernt.", Severity.Info);
+    });
+}

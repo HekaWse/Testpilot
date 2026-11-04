@@ -1,0 +1,125 @@
+# Keysight 34901A 20-channel multiplexer with 2 current channels for the 34970A.
+# Source: Keysight 34970A/34972A User's Guide 9018-02644 (pages 39, 125, 145, 210-212).
+id: agilent-34970a-34901a
+model: "34970A with 34901A module"
+channelCount: 22
+channelNumbering: "module channel 1..22; in the 34970A: slot * 100 + channel (for example 103 = slot 1 channel 3)"
+capabilities: [SwitchMultimeter]
+# The 34970A keeps the measurement configuration per channel (CONF ... ,(@scc)).
+# Relay commands are treated conservatively: they invalidate the configuration of the channel.
+state:
+  settings: [function, range, nplc]
+  invalidatedByCommand:
+    relay: ["*"]
+    configure: []
+    measure: []
+  unknownCommandInvalidatesAll: true
+channels:
+  - number: 1
+    name: "CH01 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 11
+  - number: 2
+    name: "CH02 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 12
+  - number: 3
+    name: "CH03 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 13
+  - number: 4
+    name: "CH04 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 14
+  - number: 5
+    name: "CH05 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 15
+  - number: 6
+    name: "CH06 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 16
+  - number: 7
+    name: "CH07 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 17
+  - number: 8
+    name: "CH08 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 18
+  - number: 9
+    name: "CH09 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 19
+  - number: 10
+    name: "CH10 (Bank 1)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES, FRES]
+    fourWireSenseChannel: 20
+  - number: 11
+    name: "CH11 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 12
+    name: "CH12 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 13
+    name: "CH13 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 14
+    name: "CH14 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 15
+    name: "CH15 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 16
+    name: "CH16 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 17
+    name: "CH17 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 18
+    name: "CH18 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 19
+    name: "CH19 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 20
+    name: "CH20 (Bank 2)"
+    type: GeneralPurpose
+    supportedFunctions: [VOLT:DC, VOLT:AC, RES]
+  - number: 21
+    name: "CH21 (Strom, abgesichert)"
+    type: Current
+    supportedFunctions: [CURR:DC, CURR:AC]
+  - number: 22
+    name: "CH22 (Strom, abgesichert)"
+    type: Current
+    supportedFunctions: [CURR:DC, CURR:AC]
+specialCases:
+  - "Zwei Bänke mit je 10 Kanälen: Kanal 1-10 (Bank 1), 11-20 (Bank 2), dazu zwei abgesicherte Stromkanäle 21 und 22 (User's Guide S. 210)."
+  - "4-Draht (FRES) nur auf Kanal 1-10: das Gerät koppelt Kanal n (Source) automatisch mit Kanal n+10 (Sense) (S. 39, 210, 212)."
+  - "Strommessung (DC/AC, Bereiche 10 mA, 100 mA, 1 A) nur auf Kanal 21 und 22 (S. 39, 145)."
+  - "Nur einer der Kanäle 21 und 22 kann gleichzeitig mit dem DMM/Com verbunden sein; das Schließen des einen schließt den anderen (Eingang I nach LO kurzgeschlossen) (S. 211)."
+  - "Sind Kanäle in der Scanliste (der Treiber misst mit ROUT:SCAN), lassen sich nicht mehrere Kanäle schließen: das Schließen eines Kanals öffnet den zuvor geschlossenen (S. 211)."
+  - "Grenzen: max. 300 V (CAT I), 1 A, 50 W Schaltleistung (S. 212)."
+  - "Messbereiche des internen DMM: Spannung 100 mV-300 V, Widerstand 100 Ω-100 MΩ (S. 39); sie sind im Modulprofil nicht begrenzt."
+  - "Messungen setzen das (optionale) interne DMM des 34970A voraus (S. 125)."
+todos: []

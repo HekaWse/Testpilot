@@ -39,13 +39,7 @@ internal sealed class Ag34980Dll : ISwitchMultimeter
     public Ag34980Dll(DriverConfiguration configuration)
     {
         options = ParseOptions(configuration);
-        if (!File.Exists(options.ProfilePath))
-            throw new FileNotFoundException("The configured 34980A module profile was not found.", options.ProfilePath);
-        Profile = DeviceProfileLoader.Load(File.ReadAllText(options.ProfilePath));
-        if (!Profile.Capabilities.Contains(DeviceCapability.SwitchMultimeter) || Profile.Channels.Count == 0)
-            throw new InvalidDataException("Ag34980Dll requires a channel-complete SwitchMultimeter profile.");
-        if (Profile.SpecialCases.Concat(Profile.Todos).Any(note => note.Contains(DeviceProfile.DataSheetTodo, StringComparison.Ordinal)))
-            throw new InvalidDataException("Ag34980Dll cannot use a profile with unresolved data-sheet TODOs.");
+        Profile = MainframeProfileSource.Load("Ag34980Dll", DeviceCatalog.Ag34980A, options.ProfilePath, options.Slots);
     }
 
     public DeviceProfile Profile { get; }
@@ -72,21 +66,21 @@ internal sealed class Ag34980Dll : ISwitchMultimeter
         ArgumentNullException.ThrowIfNull(configuration);
         var input = JsonSerializer.Deserialize<Ag34980DllOptionsInput>(configuration.ConnectionParameters, JsonOptions)
             ?? throw new JsonException("Ag34980Dll connection parameters must be a JSON object.");
-        if (string.IsNullOrWhiteSpace(input.LibraryPath) || string.IsNullOrWhiteSpace(input.Resource)
-            || string.IsNullOrWhiteSpace(input.ProfilePath))
-            throw new JsonException("Ag34980Dll libraryPath, resource, and profilePath are required.");
-        return new Ag34980DllOptions(Path.GetFullPath(input.LibraryPath), input.Resource,
-            Path.GetFullPath(input.ProfilePath));
+        if (string.IsNullOrWhiteSpace(input.LibraryPath) || string.IsNullOrWhiteSpace(input.Resource))
+            throw new JsonException("Ag34980Dll libraryPath and resource are required.");
+        return new Ag34980DllOptions(Path.GetFullPath(input.LibraryPath), input.Resource, input.ProfilePath, input.Slots);
     }
 
     private sealed class Ag34980DllOptionsInput
     {
         public string LibraryPath { get; init; } = "";
         public string Resource { get; init; } = "";
-        public string ProfilePath { get; init; } = "";
+        public string? ProfilePath { get; init; }
+        public Dictionary<string, string>? Slots { get; init; }
     }
 
-    private sealed record Ag34980DllOptions(string LibraryPath, string Resource, string ProfilePath);
+    private sealed record Ag34980DllOptions(string LibraryPath, string Resource, string? ProfilePath,
+        IReadOnlyDictionary<string, string>? Slots);
 }
 
 public static class Ag34980DllRegistration

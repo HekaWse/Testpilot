@@ -1,3 +1,57 @@
+:root {
+    font-family: "Arial Narrow", Arial, sans-serif;
+    background: #00a7d1;
+    color: #fff;
+}
+
+body {
+    margin: 0;
+    font-family: "Arial Narrow", Arial, sans-serif;
+}
+
+.testpilot-layout {
+    min-height: 100vh;
+}
+
+.testpilot-content {
+    padding-bottom: 3rem !important;
+}
+
+.testpilot-footer {
+    position: fixed;
+    inset: auto 0 0;
+    height: 12px;
+    background: repeating-linear-gradient(130deg, #ffe000 0 14px, #00a7d1 14px 28px);
+    pointer-events: none;
+    z-index: 1200;
+}
+
+.testpilot-layout .mud-appbar {
+    position: sticky;
+    top: 0;
+    border-bottom: 1px solid #fff;
+}
+
+.testpilot-layout .mud-toolbar {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: var(--mud-appbar-height);
+}
+
+.testpilot-layout .mud-main-content {
+    padding-top: 1.5rem;
+}
+
+.testpilot-layout a:not(.mud-button-root) {
+    color: #fff;
+    text-decoration: underline;
+}
+
+.testpilot-layout :focus-visible {
+    outline: 2px solid #ffe000;
+    outline-offset: 3px;
+}
+
 h1:focus {
     outline: none;
 }
@@ -32,7 +86,9 @@ h1:focus {
     max-height: 32rem;
     overflow: auto;
     padding: 1rem;
-    background: #f4f6f8;
+    background: #006b8a;
+    color: #fff;
+    border: 1px solid #73cee5;
     border-radius: 0.25rem;
     white-space: pre-wrap;
     overflow-wrap: anywhere;

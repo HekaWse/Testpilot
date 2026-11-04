@@ -55,6 +55,21 @@ public sealed class StationDevice
     public string ConnectionParametersJson { get; set; } = "{}";
 }
 
+/// <summary>
+/// A person allowed to switch the operator program into debug mode (single step). Only the PBKDF2 hash of the
+/// password is stored (see <see cref="DebugPassword"/>).
+/// </summary>
+public sealed class DebugUser
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    /// <summary>Short name (Kürzel), stored in upper case, for example "WSE".</summary>
+    public string ShortName { get; set; } = "";
+    public string PasswordHash { get; set; } = "";
+    public string PasswordSalt { get; set; } = "";
+    public int PasswordIterations { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; } = DatabaseClock.UtcNow();
+}
+
 public sealed class TestPlan
 {
     public Guid Id { get; set; } = Guid.NewGuid();

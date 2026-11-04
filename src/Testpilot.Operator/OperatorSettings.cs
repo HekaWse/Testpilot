@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
+using Testpilot.Sequencer;
 
 namespace Testpilot.Operator;
 
@@ -28,6 +29,12 @@ public sealed record OperatorSettings(string Station, bool SimulationEnabled, bo
 
     /// <summary>Timeout of Program, External and CustomCode steps (Sequencer:LongOperationTimeoutSeconds, default 600).</summary>
     public TimeSpan LongOperationTimeout { get; init; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>Path of the devices.json of this PC (setting DevicesFile, default next to the executable).</summary>
+    public string? DevicesFile { get; init; }
+
+    /// <summary>VISA addresses from devices.json (alias = device key); null when the file does not exist.</summary>
+    public IReadOnlyDictionary<string, string>? DeviceAddresses { get; init; }
 
     public bool IsAutoStart => FixtureDevice is not null;
 
@@ -63,6 +70,7 @@ public sealed record OperatorSettings(string Station, bool SimulationEnabled, bo
         var simulatedSerial = ReadOptional(configuration, "Simulation:SerialNumber") ?? DefaultSimulatedSerialNumber;
         var operationTimeout = ReadSeconds(configuration, "Sequencer:OperationTimeoutSeconds", 30);
         var longOperationTimeout = ReadSeconds(configuration, "Sequencer:LongOperationTimeoutSeconds", 600);
+        var (devicesFile, deviceAddresses) = DeviceAddressConfiguration.Load(configuration);
         return new OperatorSettings(
             station.Trim(),
             ReadBool(configuration, "Simulation:Enabled"),
@@ -76,7 +84,9 @@ public sealed record OperatorSettings(string Station, bool SimulationEnabled, bo
             SerialReaderDevice = serialReaderDevice,
             FixtureSettleTime = TimeSpan.FromMilliseconds(settleMilliseconds),
             SimulatedSerialNumber = simulatedSerial,
-            LongOperationTimeout = longOperationTimeout
+            LongOperationTimeout = longOperationTimeout,
+            DevicesFile = devicesFile,
+            DeviceAddresses = deviceAddresses
         };
     }
 

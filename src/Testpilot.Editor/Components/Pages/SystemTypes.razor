@@ -21,6 +21,10 @@
                 <MudText Typo="Typo.h6">Prüfsystemtyp anlegen</MudText>
                 <MudTextField Label="Name (z. B. PS04)" @bind-Value="newSystemName" Class="mt-2" />
                 <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateSystemAsync" Disabled="busy" Class="mt-3">Anlegen</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="SeedSystemsAsync" Disabled="busy" Class="mt-3 ml-2"
+                           title="Legt die bekannten Prüfsystemtypen PS01 bis PS31 an, soweit sie noch fehlen, dazu die bekannte Ausstattung (PS05-Geräte, Prüfsystem PS05-1). Vorhandene Typen, Geräte und Prüfsysteme bleiben unverändert.">
+                    Standardtypen anlegen
+                </MudButton>
                 <MudDivider Class="my-4" />
                 <MudText Typo="Typo.h6">Vorhandene Prüfsystemtypen</MudText>
                 @if (systems.Count == 0)
@@ -67,7 +71,7 @@
                     <MudDivider Class="my-4" />
                     <MudText Typo="Typo.h6">@(editingDeviceId.HasValue ? "Gerät bearbeiten" : "Gerät hinzufügen")</MudText>
                     <MudGrid Spacing="2" Class="mt-1">
-                        <MudItem xs="12" sm="4"><MudTextField Label="Gerätekennung (z. B. dmm1)" @bind-Value="deviceKey" /></MudItem>
+                        <MudItem xs="12" sm="4"><MudTextField Label="Gerätekennung (z. B. Ag34980A)" @bind-Value="deviceKey" /></MudItem>
                         <MudItem xs="12" sm="4">
                             <MudSelect T="string" Label="Gerätemodell" Value="modelName" ValueChanged="ModelChanged">
                                 @foreach (var model in DeviceCatalog.Models)
@@ -270,6 +274,24 @@
         }
         newSystemName = "";
         await ShowSystemAsync(system.Id);
+    });
+
+    private Task SeedSystemsAsync() => RunAsync(async () =>
+    {
+        IReadOnlyList<string> added;
+        IReadOnlyList<string> equipment;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            added = await TestSystemTypeSeed.SeedAsync(db);
+            equipment = await StationSeed.SeedAsync(db);
+        }
+        await ReloadAsync(selectedSystem?.Id);
+        if (added.Count == 0 && equipment.Count == 0)
+            Snackbar.Add("Alle Standardtypen sind bereits vorhanden.", Severity.Info);
+        if (added.Count != 0)
+            Snackbar.Add($"{added.Count} Prüfsystemtypen angelegt: {string.Join(", ", added)}", Severity.Success);
+        if (equipment.Count != 0)
+            Snackbar.Add($"Bekannte Ausstattung angelegt: {string.Join(", ", equipment)}", Severity.Success);
     });
 
     private Task SelectSystemAsync(Guid id) => RunAsync(() => ShowSystemAsync(id));

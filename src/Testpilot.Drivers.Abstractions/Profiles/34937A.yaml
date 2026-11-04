@@ -1,17 +1,151 @@
+# Keysight 34937A 32-channel general purpose switch module.
+# Source: Keysight 34937A-34939A User's Guide 9018-02150 (pages 15-23, 42-43).
 id: agilent-34980a-34937a
 model: "34980A with 34937A module"
-channelCount: null
-channelNumbering: "module channel 1..n; in the 34980A: slot * 100 + channel (for example 1003)"
+channelCount: 32
+channelNumbering: "module channel 1..32; in the 34980A: slot * 1000 + channel (sccc, for example 3029 = slot 3 channel 29)"
 capabilities: []
-channels: []
+# Relays only; the module does not connect to the analog buses, so there is no measurement state.
 state:
   settings: []
   invalidatedByCommand: {}
   unknownCommandInvalidatesAll: true
+channels:
+  - number: 1
+    name: "CH01 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 2
+    name: "CH02 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 3
+    name: "CH03 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 4
+    name: "CH04 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 5
+    name: "CH05 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 6
+    name: "CH06 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 7
+    name: "CH07 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 8
+    name: "CH08 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 9
+    name: "CH09 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 10
+    name: "CH10 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 11
+    name: "CH11 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 12
+    name: "CH12 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 13
+    name: "CH13 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 14
+    name: "CH14 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 15
+    name: "CH15 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 16
+    name: "CH16 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 17
+    name: "CH17 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 18
+    name: "CH18 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 19
+    name: "CH19 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 20
+    name: "CH20 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 21
+    name: "CH21 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 22
+    name: "CH22 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 23
+    name: "CH23 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 24
+    name: "CH24 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 25
+    name: "CH25 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 26
+    name: "CH26 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 27
+    name: "CH27 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 28
+    name: "CH28 (Form C, 1 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 29
+    name: "CH29 (Form A, 5 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 30
+    name: "CH30 (Form A, 5 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 31
+    name: "CH31 (Form A, 5 A)"
+    type: Relay
+    supportedFunctions: []
+  - number: 32
+    name: "CH32 (Form A, 5 A)"
+    type: Relay
+    supportedFunctions: []
 specialCases:
-  - "TODO: aus Datenblatt prüfen — Kanaltypen und Stromkanäle"
-  - "TODO: aus Datenblatt prüfen — 4-Draht-Kanalpaare und Kanalbelegung"
-todos:
-  - "TODO: aus Datenblatt prüfen — Anzahl und Nummerierung der Kanäle"
-  - "TODO: aus Datenblatt prüfen — Kanaltypen, Funktionen und Sonderfälle"
-  - "TODO: aus Datenblatt prüfen — Wertebereiche und Kanalkonfigurationen"
+  - "28 Form-C-Relais (SPDT, COM/NO/NC) auf Kanal 1-28 und 4 Form-A-Relais (SPST) auf Kanal 29-32, alle bistabil (User's Guide S. 15, 22)."
+  - "Keine Verbindung zu den Analog-Bussen des 34980A: keine Messungen über dieses Modul (S. 15)."
+  - "Mehrere Kanäle dürfen gleichzeitig geschlossen sein (S. 15)."
+  - "Form C (Kanal 1-28): 1 A schalten / 2 A tragen, 60 VA pro Kanal; Verschmutzungsgrad 1: ±300 Vrms/VDC, Grad 2: ±100 Vrms/VDC (S. 42)."
+  - "Form A (Kanal 29-32): 5 A schalten / 7 A tragen, 150 VA pro Kanal; Verschmutzungsgrad 1: ±250 Vrms oder 30 VDC, Grad 2: ±100 Vrms oder 30 VDC (S. 42)."
+  - "Max. 6 W Verlustleistung pro Modul; Transienten 1000 Vpk (S. 42-43)."
+  - "Verhalten der 5-A-Relais bei Netzausfall über Jumper (Werkseinstellung: Zustand halten); Abfrage mit SYSTem:MODule:PFAil:JUMPer:AMP5? <slot> (S. 17, 20)."
+  - "Temperatursensor meldet ab 70 °C HOT/SRQ (S. 16)."
+todos: []

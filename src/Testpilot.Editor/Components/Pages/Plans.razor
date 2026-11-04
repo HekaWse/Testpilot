@@ -758,6 +758,9 @@
         ChannelType.Resistance => "Widerstand",
         ChannelType.Relay => "Relais",
         ChannelType.PowerOutput => "Netzteilausgang",
+        ChannelType.DigitalIo => "Digital-E/A",
+        ChannelType.Totalizer => "Zähler",
+        ChannelType.AnalogOutput => "Analogausgang",
         _ => type.ToString()
     };
     private static string StepTypeText(StepType type) => type switch

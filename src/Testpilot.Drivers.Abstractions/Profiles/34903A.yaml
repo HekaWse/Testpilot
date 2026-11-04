@@ -1,0 +1,99 @@
+# Keysight 34903A 20-channel actuator / general purpose switch for the 34970A.
+# Source: Keysight 34970A/34972A User's Guide 9018-02644 (pages 216-218).
+id: agilent-34970a-34903a
+model: "34970A with 34903A module"
+channelCount: 20
+channelNumbering: "module channel 1..20; in the 34970A: slot * 100 + channel (for example 201 = slot 2 channel 1)"
+capabilities: []
+# Relays only; the module does not connect to the internal DMM, so there is no measurement state.
+state:
+  settings: []
+  invalidatedByCommand: {}
+  unknownCommandInvalidatesAll: true
+channels:
+  - number: 1
+    name: "CH01 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 2
+    name: "CH02 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 3
+    name: "CH03 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 4
+    name: "CH04 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 5
+    name: "CH05 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 6
+    name: "CH06 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 7
+    name: "CH07 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 8
+    name: "CH08 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 9
+    name: "CH09 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 10
+    name: "CH10 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 11
+    name: "CH11 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 12
+    name: "CH12 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 13
+    name: "CH13 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 14
+    name: "CH14 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 15
+    name: "CH15 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 16
+    name: "CH16 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 17
+    name: "CH17 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 18
+    name: "CH18 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 19
+    name: "CH19 (Form C)"
+    type: Relay
+    supportedFunctions: []
+  - number: 20
+    name: "CH20 (Form C)"
+    type: Relay
+    supportedFunctions: []
+specialCases:
+  - "20 unabhängige, bistabile SPDT-Relais (Form C) mit NO/NC/COM; keine Verbindung zum internen DMM (User's Guide S. 216)."
+  - "CLOSE/OPEN steuern die Verbindung NO-COM, z. B. CLOSE 201 verbindet NO mit COM von Kanal 01; im offenen Zustand ist NC mit COM verbunden (S. 216)."
+  - "Mehrere Kanäle dürfen gleichzeitig geschlossen sein (S. 216)."
+  - "Grenzen: max. 300 V (CAT I), 1 A, 50 W Schaltleistung (S. 218)."
+todos: []

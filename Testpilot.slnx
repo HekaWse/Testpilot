@@ -1,4 +1,34 @@
 <Solution>
+  <Folder Name="/Externes/">
+    <File Path="Externes/db_adap.h" />
+    <File Path="Externes/db_adap.lib" />
+    <File Path="Externes/db_auftrag.h" />
+    <File Path="Externes/db_auftrag.lib" />
+    <File Path="Externes/db_prod.h" />
+    <File Path="Externes/db_prod.lib" />
+    <File Path="Externes/mongoapi.cpp" />
+    <File Path="Externes/mongoapi.h" />
+    <File Path="Externes/Ps04Intern.c" />
+    <File Path="Externes/PS04Intern.dll" />
+    <File Path="Externes/Ps04Intern.h" />
+    <File Path="Externes/PS04Intern.lib" />
+    <File Path="Externes/sapapi.cpp" />
+    <File Path="Externes/sapapi.h" />
+    <File Path="Externes/sapTools.h" />
+    <File Path="Externes/sapTools.lib" />
+    <File Path="Externes/Scanner.c" />
+    <File Path="Externes/Scanner.h" />
+    <File Path="Externes/ScanSerNr.c" />
+    <File Path="Externes/ScanSerNr.h" />
+    <File Path="Externes/sendmailC.h" />
+    <File Path="Externes/sendmailC.lib" />
+    <File Path="Externes/SensoScanSerNr.c" />
+    <File Path="Externes/SensoScanSerNr.h" />
+    <File Path="Externes/Seriennummer.c" />
+    <File Path="Externes/Seriennummer.h" />
+    <File Path="Externes/teproapi.cpp" />
+    <File Path="Externes/teproapi.h" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Testpilot.Core/Testpilot.Core.csproj" />
     <Project Path="src/Testpilot.Data/Testpilot.Data.csproj" />

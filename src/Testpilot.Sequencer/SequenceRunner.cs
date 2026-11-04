@@ -317,6 +317,7 @@ public sealed class SequenceRunner
         ArgumentException.ThrowIfNullOrWhiteSpace(context.Fauf);
         ArgumentException.ThrowIfNullOrWhiteSpace(context.SerialNumber);
         ArgumentException.ThrowIfNullOrWhiteSpace(context.Station);
-        ArgumentException.ThrowIfNullOrWhiteSpace(context.Operator);
+        // Operators are not recorded; Operator holds the debug short name or is empty.
+        ArgumentNullException.ThrowIfNull(context.Operator);
     }
 }

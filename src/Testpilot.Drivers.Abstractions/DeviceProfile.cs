@@ -17,7 +17,13 @@ public enum ChannelType
     Current,
     Resistance,
     Relay,
-    PowerOutput
+    PowerOutput,
+    /// <summary>Digital input/output port (for example 34907A channel 1/2). Neither measured nor switched.</summary>
+    DigitalIo,
+    /// <summary>Event counter (for example 34907A channel 3). Neither measured nor switched.</summary>
+    Totalizer,
+    /// <summary>Analog voltage output (for example 34907A DAC channel 4/5). Neither measured nor switched.</summary>
+    AnalogOutput
 }
 
 /// <summary>Inclusive SI bounds for one supported measurement function.</summary>
@@ -70,7 +76,8 @@ public sealed record ChannelProfile(
     IReadOnlySet<string> SupportedFunctions,
     IReadOnlyDictionary<string, NumericRange> ValueRanges,
     ChannelStateProfile State,
-    IReadOnlySet<int>? ConflictsWithChannels = null)
+    IReadOnlySet<int>? ConflictsWithChannels = null,
+    int? FourWireSenseChannel = null)
 {
     public void Validate()
     {
@@ -94,7 +101,14 @@ public sealed record ChannelProfile(
         }
         if (ConflictsWithChannels?.Any(channel => channel <= 0 || channel == Number) == true)
             throw new ArgumentException("Conflicting channel numbers must be positive and cannot reference the channel itself.");
+        if (FourWireSenseChannel is { } sense && (sense <= 0 || sense == Number))
+            throw new ArgumentException("A 4-wire sense channel must be positive and cannot be the channel itself.");
+        if (!CanSwitch && SupportedFunctions.Count > 0)
+            throw new ArgumentException($"Channel {Number} of type {Type} cannot support measurement functions.");
     }
+
+    /// <summary>False for digital I/O, totalizer and analog output channels: a relay command must never reach them.</summary>
+    public bool CanSwitch => Type is not (ChannelType.DigitalIo or ChannelType.Totalizer or ChannelType.AnalogOutput);
 }
 
 /// <summary>Device configuration and conservative per-channel state metadata.</summary>
@@ -142,6 +156,8 @@ public sealed record DeviceProfile(
             foreach (var conflictingChannel in channel.ConflictsWithChannels ?? new HashSet<int>())
                 if (!Channels.Any(candidate => candidate.Number == conflictingChannel))
                     throw new ArgumentException($"Channel {channel.Number} conflicts with undefined channel {conflictingChannel}.");
+            if (channel.FourWireSenseChannel is { } sense && Channels.All(candidate => candidate.Number != sense))
+                throw new ArgumentException($"Channel {channel.Number} uses undefined 4-wire sense channel {sense}.");
         }
     }
 

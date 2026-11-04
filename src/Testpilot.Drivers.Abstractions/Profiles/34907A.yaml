@@ -1,0 +1,40 @@
+# Keysight 34907A multifunction module (digital I/O, totalizer, DAC) for the 34970A.
+# Source: Keysight 34970A/34972A User's Guide 9018-02644 (pages 162-169).
+id: agilent-34970a-34907a
+model: "34970A with 34907A module"
+channelCount: 5
+channelNumbering: "module channel 1..5; in the 34970A: slot * 100 + channel (for example 302 = slot 3 port 2)"
+capabilities: []
+# No measurement or relay channels: test plans cannot measure or switch them.
+state:
+  settings: []
+  invalidatedByCommand: {}
+  unknownCommandInvalidatesAll: true
+channels:
+  - number: 1
+    name: "DIO Port 1 (unteres Byte)"
+    type: DigitalIo
+    supportedFunctions: []
+  - number: 2
+    name: "DIO Port 2 (oberes Byte)"
+    type: DigitalIo
+    supportedFunctions: []
+  - number: 3
+    name: "Totalisator"
+    type: Totalizer
+    supportedFunctions: []
+  - number: 4
+    name: "DAC 1 (±12 V)"
+    type: AnalogOutput
+    supportedFunctions: []
+  - number: 5
+    name: "DAC 2 (±12 V)"
+    type: AnalogOutput
+    supportedFunctions: []
+specialCases:
+  - "Kanal 1 und 2 sind nicht isolierte 8-Bit-Ports (unteres/oberes Byte), als Ein- oder Ausgang nutzbar; Ausgabe z. B. SOUR:DIG:DATA:BYTE 10,(@302) (User's Guide S. 162-168)."
+  - "Kanal 3 ist ein 26-Bit-Totalisator (TTL-Impulse bis 100 kHz, max. 67.108.863) (S. 164-166)."
+  - "Kanal 4 und 5 sind DAC-Ausgänge -12 V bis +12 V in 1-mV-Schritten, je max. 10 mA, zusammen höchstens 40 mA für alle sechs DACs (S. 169)."
+  - "*RST, SYSTem:PRESet und SYSTem:CPON schalten beide Ports auf Eingang, setzen den Totalisator auf 0 und die DACs auf 0 V (S. 162, 165, 167, 169). Der Treiber Ag34970Scpi sendet deshalb standardmäßig kein *RST und kein *TST?."
+  - "Im PS05 liest der Adapter-Treiber Ps05Fixture den Adapterschalter über Kanal 301 und steuert Niederhalter/Lampe über Kanal 302 (34907A in Slot 3)."
+todos: []

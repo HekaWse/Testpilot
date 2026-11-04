@@ -53,12 +53,18 @@ public static class ChannelAllocationAnalyzer
             {
                 var otherProfile = FindChannel(profile, other.Channel);
                 if (channelProfile?.ConflictsWithChannels?.Contains(other.Channel) == true
-                    || otherProfile?.ConflictsWithChannels?.Contains(channel.Channel) == true)
+                    || otherProfile?.ConflictsWithChannels?.Contains(channel.Channel) == true
+                    || UsesAsFourWireSense(channel, channelProfile, other.Channel)
+                    || UsesAsFourWireSense(other, otherProfile, channel.Channel))
                     conflictingChannels.Add(other.Channel);
             }
             return channel with { ConflictingChannels = conflictingChannels };
         }).ToArray();
     }
+
+    private static bool UsesAsFourWireSense(ChannelAllocation allocation, ChannelProfile? profile, int otherChannel) =>
+        profile?.FourWireSenseChannel == otherChannel
+        && allocation.Usage.Split(", ").Contains("FRES", StringComparer.Ordinal);
 
     private static ChannelProfile? FindChannel(DeviceProfile profile, int number) =>
         profile.Channels.FirstOrDefault(channel => channel.Number == number);

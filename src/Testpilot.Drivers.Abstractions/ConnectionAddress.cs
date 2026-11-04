@@ -12,7 +12,7 @@ public static class ConnectionAddress
     /// <summary>Drivers that are addressed by a VISA resource string (<c>"resource"</c>).</summary>
     public static IReadOnlySet<string> VisaDrivers { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        "Ag34980Scpi", "Ag34980Dll", "HmpScpi", "HmpDll", "Ps05Fixture", "VisaGeneric"
+        "Ag34980Scpi", "Ag34980Dll", "Ag34970Scpi", "HmpScpi", "HmpDll", "Ps05Fixture", "VisaGeneric"
     };
 
     /// <summary>Short address text: VISA resource, host[:port], serial port or program path; empty if none is set.</summary>

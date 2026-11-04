@@ -4,6 +4,7 @@ using Testpilot.Planning;
 
 namespace Testpilot.Sequencer;
 
+/// <summary>Order data of one run. <see cref="Operator"/> is the short name of a debug login, otherwise empty.</summary>
 public sealed record RunContext(string Fauf, string SerialNumber, string Station, string Operator,
     bool SingleStepMode = false, bool Simulated = false);
 /// <summary>Progress of one step. <see cref="Result"/> is set when the step has finished (completed, failed, error).</summary>

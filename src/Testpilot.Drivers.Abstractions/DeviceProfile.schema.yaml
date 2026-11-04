@@ -19,13 +19,18 @@ state:
 channels:
   - number: 1
     name: Channel 1
-    # Unknown, GeneralPurpose, Voltage, Current, Resistance, Relay, PowerOutput
+    # Unknown, GeneralPurpose, Voltage, Current, Resistance, Relay, PowerOutput,
+    # DigitalIo, Totalizer, AnalogOutput (the last three have no supportedFunctions and reject relay steps)
     # (PowerOutput channels use the functions VOLT and CURR, see Profiles\HMP*.yaml)
     type: GeneralPurpose
     supportedFunctions:
       - VOLT:DC
     valueRanges:
       VOLT:DC: [0.0, 10.0]
+    # Channels that must never be used together with this channel.
     conflictsWithChannels: []
+    # Optional: FRES on this channel also occupies the sense channel (34921A: channel n + 20).
+    # The editor warns only when the channel is measured with FRES and the sense channel is used too.
+    fourWireSenseChannel: null
 specialCases: []
 todos: []

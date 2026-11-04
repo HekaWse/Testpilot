@@ -82,6 +82,7 @@ public static class DeviceProfileLoader
         public List<string> SupportedFunctions { get; set; } = [];
         public Dictionary<string, double[]> ValueRanges { get; set; } = new(StringComparer.Ordinal);
         public List<int> ConflictsWithChannels { get; set; } = [];
+        public int? FourWireSenseChannel { get; set; }
         public ChannelStateDocument? State { get; set; }
 
         public ChannelProfile ToProfile(ChannelStateProfile defaultState)
@@ -99,7 +100,7 @@ public static class DeviceProfileLoader
             }
 
             return new ChannelProfile(Number, Name, Type, new HashSet<string>(SupportedFunctions, StringComparer.Ordinal),
-                ranges, State?.ToProfile() ?? defaultState, new HashSet<int>(ConflictsWithChannels));
+                ranges, State?.ToProfile() ?? defaultState, new HashSet<int>(ConflictsWithChannels), FourWireSenseChannel);
         }
     }
 

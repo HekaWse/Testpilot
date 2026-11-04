@@ -54,7 +54,11 @@ public sealed class ExecutionPlanOptimizer
             if (requiredCapability.HasValue && !profile.Capabilities.Contains(requiredCapability.Value))
                 throw new ArgumentException($"Device '{step.DeviceKey}' does not provide capability '{requiredCapability.Value}'.");
             if (step.StepType == StepType.Relay)
-                _ = profile.GetChannel(StepParameters.Deserialize<RelayParameters>(step.ParametersJson).Channel);
+            {
+                var channel = profile.GetChannel(StepParameters.Deserialize<RelayParameters>(step.ParametersJson).Channel);
+                if (!channel.CanSwitch)
+                    throw new ArgumentException($"Step '{step.Name}': channel {channel.Number} of device '{step.DeviceKey}' is not a relay channel ({channel.Type}).");
+            }
             if (step.StepType == StepType.SetPower)
             {
                 var power = StepParameters.Deserialize<SetPowerParameters>(step.ParametersJson);

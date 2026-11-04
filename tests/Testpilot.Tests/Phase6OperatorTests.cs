@@ -33,13 +33,15 @@ public sealed class Phase6OperatorTests
         await viewModel.LoadOrderAsync();
 
         Assert.Null(viewModel.ErrorText);
-        Assert.Contains("Artikel 4711 · FZ A · Prüfplan Version 1", viewModel.OrderText, StringComparison.Ordinal);
+        Assert.Equal("Artikel 4711 · FZ A", viewModel.OrderText);
+        Assert.Equal("Steuerplatine X", viewModel.ArticleDescription);
+        Assert.Equal("Prüfplan Version 1 · 1 Schritte", viewModel.PlanText);
         var row = Assert.Single(viewModel.Steps);
         Assert.Equal("3,2 V", row.LowText);
         Assert.Equal("3,4 V", row.HighText);
         Assert.True(viewModel.StartCommand.CanExecute(null));
+        Assert.False(viewModel.IsDebugMode);
 
-        viewModel.OperatorName = "Bediener";
         viewModel.SerialNumber = "1234567890";
         await viewModel.StartAsync();
 
@@ -53,7 +55,7 @@ public sealed class Phase6OperatorTests
         Assert.Single(Directory.GetFiles(bench.LogDirectory, "run-*-1234567890.log"));
         await using var database = bench.Database.NewContext();
         var run = Assert.Single(database.Runs);
-        Assert.Equal(("FAUF-1", "1234567890", "Bench 1", "Bediener", RunOutcome.Pass),
+        Assert.Equal(("FAUF-1", "1234567890", "Bench 1", "", RunOutcome.Pass),
             (run.Fauf, run.SerialNumber, run.Station, run.Operator, run.Result));
     }
 
@@ -70,6 +72,34 @@ public sealed class Phase6OperatorTests
         Assert.Contains("SensopartTcp @ 192.0.2.10", viewModel.SystemConfigurationText, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task StartupShowsAddressesFromDevicesJson()
+    {
+        await using var bench = await OperatorBench.CreateAsync(withFixture: true);
+        bench.UseDeviceAddresses($$"""
+            [{"Alias": "{{bench.FixtureKey.ToUpperInvariant()}}", "Resource": "GPIB0::12::INSTR"},
+             {"Alias": "Unbekannt", "Resource": "GPIB0::1::INSTR"}]
+            """);
+        var viewModel = await bench.CreateViewModelAsync();
+
+        Assert.Null(viewModel.ErrorText);
+        Assert.Contains("Ps05Fixture @ GPIB0::12::INSTR (devices.json)", viewModel.SystemConfigurationText, StringComparison.Ordinal);
+        Assert.Contains("SensopartTcp @ 192.0.2.10" + Environment.NewLine, viewModel.SystemConfigurationText, StringComparison.Ordinal);
+        Assert.Contains("Adressen aus devices.json", viewModel.SystemConfigurationText, StringComparison.Ordinal);
+        Assert.Contains("unbekannte Geräte ignoriert: Unbekannt", viewModel.SystemConfigurationText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DevicesJsonEntryForADeviceWithoutVisaAddressIsAnError()
+    {
+        await using var bench = await OperatorBench.CreateAsync(withFixture: true);
+        bench.UseDeviceAddresses($$"""[{"Alias": "{{bench.ReaderKey}}", "Resource": "TCPIP0::192.0.2.11::INSTR"}]""");
+        var viewModel = await bench.CreateViewModelAsync();
+
+        Assert.Contains("keine VISA-Adresse", viewModel.ErrorText, StringComparison.Ordinal);
+        Assert.False(viewModel.CanEdit);
+    }
+
     [Theory]
     [InlineData("SN-1")]
     [InlineData("123456789")]
@@ -80,7 +110,6 @@ public sealed class Phase6OperatorTests
         var viewModel = await bench.CreateViewModelAsync();
         viewModel.Fauf = "FAUF-1";
         await viewModel.LoadOrderAsync();
-        viewModel.OperatorName = "Bediener";
         viewModel.SerialNumber = serial;
 
         await viewModel.StartAsync();
@@ -92,18 +121,45 @@ public sealed class Phase6OperatorTests
     }
 
     [Fact]
-    public async Task MissingOperatorDoesNotStartARun()
+    public async Task SingleStepCanOnlyBeSwitchedOnInDebugMode()
     {
         await using var bench = await OperatorBench.CreateAsync();
+        await bench.AddDebugUserAsync("WSE", "geheim123");
         var viewModel = await bench.CreateViewModelAsync();
-        viewModel.Fauf = "FAUF-1";
-        await viewModel.LoadOrderAsync();
-        viewModel.SerialNumber = "1234567890";
 
-        await viewModel.StartAsync();
+        viewModel.SingleStepMode = true;
+        Assert.False(viewModel.SingleStepMode);
+        Assert.True(viewModel.DebugLoginCommand.CanExecute(null));
+        Assert.False(viewModel.DebugLogoutCommand.CanExecute(null));
 
-        Assert.Equal("Bitte Bediener eintragen.", viewModel.ErrorText);
-        Assert.Equal(RunDisplayState.None, viewModel.ResultState);
+        Assert.Null(await viewModel.LoginDebugAsync(" wse ", "geheim123"));
+        Assert.True(viewModel.IsDebugMode);
+        Assert.Equal("Debugmodus: WSE", viewModel.DebugModeText);
+        Assert.False(viewModel.DebugLoginCommand.CanExecute(null));
+        viewModel.SingleStepMode = true;
+        Assert.True(viewModel.SingleStepMode);
+
+        viewModel.DebugLogoutCommand.Execute(null);
+        Assert.False(viewModel.IsDebugMode);
+        Assert.Null(viewModel.DebugUser);
+        Assert.False(viewModel.SingleStepMode);
+    }
+
+    [Theory]
+    [InlineData("WSE", "falsch123", "Kürzel oder Passwort ist falsch.")]
+    [InlineData("ABC", "geheim123", "Kürzel oder Passwort ist falsch.")]
+    [InlineData("", "geheim123", "Bitte Kürzel und Passwort eingeben.")]
+    [InlineData("WSE", "", "Bitte Kürzel und Passwort eingeben.")]
+    public async Task WrongDebugLoginIsRejected(string shortName, string password, string expected)
+    {
+        await using var bench = await OperatorBench.CreateAsync();
+        await bench.AddDebugUserAsync("WSE", "geheim123");
+        var viewModel = await bench.CreateViewModelAsync();
+
+        Assert.Equal(expected, await viewModel.LoginDebugAsync(shortName, password));
+        Assert.False(viewModel.IsDebugMode);
+        viewModel.SingleStepMode = true;
+        Assert.False(viewModel.SingleStepMode);
     }
 
     [Fact]
@@ -151,10 +207,11 @@ public sealed class Phase6OperatorTests
     public async Task SingleStepAndOperatorPromptAreAnsweredInTheWindow()
     {
         await using var bench = await OperatorBench.CreateAsync(withPrompt: true);
+        await bench.AddDebugUserAsync("WSE", "geheim123");
         var viewModel = await bench.CreateViewModelAsync();
         viewModel.Fauf = "FAUF-1";
         await viewModel.LoadOrderAsync();
-        viewModel.OperatorName = "Bediener";
+        Assert.Null(await viewModel.LoginDebugAsync("WSE", "geheim123"));
         viewModel.SerialNumber = "1234567890";
         viewModel.SingleStepMode = true;
 
@@ -180,16 +237,19 @@ public sealed class Phase6OperatorTests
         Assert.False(viewModel.IsPromptVisible);
         Assert.False(viewModel.IsRunning);
         Assert.True(viewModel.CanEdit);
+        await using var database = bench.Database.NewContext();
+        Assert.Equal("WSE", Assert.Single(database.Runs).Operator);
     }
 
     [Fact]
     public async Task CancelWhileWaitingAbortsTheRun()
     {
         await using var bench = await OperatorBench.CreateAsync();
+        await bench.AddDebugUserAsync("WSE", "geheim123");
         var viewModel = await bench.CreateViewModelAsync();
         viewModel.Fauf = "FAUF-1";
         await viewModel.LoadOrderAsync();
-        viewModel.OperatorName = "Bediener";
+        Assert.Null(await viewModel.LoginDebugAsync("WSE", "geheim123"));
         viewModel.SerialNumber = "1234567890";
         viewModel.SingleStepMode = true;
         var finished = 0;
@@ -217,7 +277,6 @@ public sealed class Phase6OperatorTests
         var viewModel = await bench.CreateViewModelAsync();
         viewModel.Fauf = "FAUF-1";
         await viewModel.LoadOrderAsync();
-        viewModel.OperatorName = "Bediener";
         viewModel.SerialNumber = "1234567890";
 
         var run = viewModel.StartAsync();
@@ -372,23 +431,6 @@ public sealed class Phase6OperatorTests
     }
 
     [Fact]
-    public async Task ClosingWithoutOperatorReleasesTheAdapterWithAHint()
-    {
-        await using var bench = await OperatorBench.CreateAsync(withFixture: true);
-        var viewModel = await bench.CreateReadyViewModelAsync();
-        viewModel.OperatorName = "";
-
-        await viewModel.PollFixtureOnceAsync();
-        SimulatedFixtures.Close(bench.FixtureKey);
-        await viewModel.PollFixtureOnceAsync();
-
-        Assert.Contains("Bediener", viewModel.ErrorText, StringComparison.Ordinal);
-        Assert.False(SimulatedFixtures.GetState(bench.FixtureKey).Closed);
-        await using var database = bench.Database.NewContext();
-        Assert.Empty(database.Runs);
-    }
-
-    [Fact]
     public async Task WithoutCodeReaderTheSerialNumberMustBeScannedBeforeClosing()
     {
         await using var bench = await OperatorBench.CreateAsync(withFixture: true, withReader: false);
@@ -524,7 +566,7 @@ public sealed class Phase6OperatorTests
         public async Task<MainViewModel> CreateViewModelAsync()
         {
             var service = new OperatorRunService(services.GetRequiredService<IServiceScopeFactory>(),
-                new MockSapClient([new("FAUF-1", new OrderInfo("4711", "A"))]), new DriverRegistry().AddAllDrivers(),
+                new MockSapClient([new("FAUF-1", new OrderInfo("4711", "A", "Steuerplatine X"))]), new DriverRegistry().AddAllDrivers(),
                 settings, new CustomStepRegistry(), NullLoggerFactory.Instance);
             var viewModel = new MainViewModel(service, "test");
             viewModels.Add(viewModel);
@@ -532,14 +574,23 @@ public sealed class Phase6OperatorTests
             return viewModel;
         }
 
-        /// <summary>FAUF loaded and operator entered: the next adapter close starts the run.</summary>
+        /// <summary>Simulates a devices.json next to the executable; call before <see cref="CreateViewModelAsync"/>.</summary>
+        public void UseDeviceAddresses(string devicesJson) =>
+            settings = settings with { DevicesFile = "devices.json", DeviceAddresses = DeviceAddressFile.Parse(devicesJson) };
+
+        /// <summary>FAUF loaded: the next adapter close starts the run.</summary>
         public async Task<MainViewModel> CreateReadyViewModelAsync()
         {
             var viewModel = await CreateViewModelAsync();
             viewModel.Fauf = "FAUF-1";
             await viewModel.LoadOrderAsync();
-            viewModel.OperatorName = "Bediener";
             return viewModel;
+        }
+
+        public async Task AddDebugUserAsync(string shortName, string password)
+        {
+            await using var context = Database.NewContext();
+            await new DebugUserService(context).SetPasswordAsync(shortName, password);
         }
 
         public async ValueTask DisposeAsync()

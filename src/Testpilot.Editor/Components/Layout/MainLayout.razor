@@ -1,10 +1,10 @@
 ﻿@inherits LayoutComponentBase
 
-<MudThemeProvider />
+<MudThemeProvider Theme="theme" IsDarkMode="true" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
-<MudLayout>
+<MudLayout Class="testpilot-layout">
     <MudAppBar Elevation="1">
         <MudText Typo="Typo.h6" Class="ms-2">Testpilot — Prüfplaneditor</MudText>
         <MudSpacer />
@@ -12,10 +12,12 @@
         <MudButton Href="/plans" Color="Color.Inherit" Variant="Variant.Text">Prüfpläne</MudButton>
         <MudButton Href="/system-types" Color="Color.Inherit" Variant="Variant.Text">Prüfsystemtypen</MudButton>
         <MudButton Href="/stations" Color="Color.Inherit" Variant="Variant.Text">Prüfsysteme</MudButton>
+        <MudButton Href="/debug-users" Color="Color.Inherit" Variant="Variant.Text">Debug-Berechtigungen</MudButton>
     </MudAppBar>
-    <MudMainContent Class="pa-6">
+    <MudMainContent Class="pa-6 testpilot-content">
         @Body
     </MudMainContent>
+    <div class="testpilot-footer" aria-hidden="true"></div>
 </MudLayout>
 
 <div id="blazor-error-ui" data-nosnippet>
@@ -23,3 +25,50 @@
     <a href="." class="reload">Neu laden</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private static readonly string[] fontFamily = ["Arial Narrow", "Arial", "sans-serif"];
+
+    private readonly MudTheme theme = new()
+    {
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#FFFFFF",
+            PrimaryContrastText = "#006B8A",
+            Secondary = "#FFE000",
+            SecondaryContrastText = "#143340",
+            Background = "#00A7D1",
+            BackgroundGray = "#0097BF",
+            Surface = "#007FA5",
+            AppbarBackground = "#00A7D1",
+            AppbarText = "#FFFFFF",
+            TextPrimary = "#FFFFFF",
+            TextSecondary = "#FFFFFF",
+            TextDisabled = "#C2DEE6",
+            ActionDefault = "#FFFFFF",
+            ActionDisabled = "#C2DEE6",
+            ActionDisabledBackground = "#337E94",
+            Divider = "#73CEE5",
+            DividerLight = "#73CEE5",
+            TableLines = "#73CEE5",
+            TableHover = "#006B8A"
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = fontFamily },
+            H1 = new H1Typography { FontFamily = fontFamily },
+            H2 = new H2Typography { FontFamily = fontFamily },
+            H3 = new H3Typography { FontFamily = fontFamily },
+            H4 = new H4Typography { FontFamily = fontFamily },
+            H5 = new H5Typography { FontFamily = fontFamily },
+            H6 = new H6Typography { FontFamily = fontFamily },
+            Body1 = new Body1Typography { FontFamily = fontFamily },
+            Body2 = new Body2Typography { FontFamily = fontFamily },
+            Subtitle1 = new Subtitle1Typography { FontFamily = fontFamily },
+            Subtitle2 = new Subtitle2Typography { FontFamily = fontFamily },
+            Button = new ButtonTypography { FontFamily = fontFamily },
+            Caption = new CaptionTypography { FontFamily = fontFamily },
+            Overline = new OverlineTypography { FontFamily = fontFamily }
+        }
+    };
+}
