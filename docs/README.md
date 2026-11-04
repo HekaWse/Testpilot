@@ -94,7 +94,9 @@ Navigation und Einrichtung folgen immer **Prüfsystemtypen → Prüfsysteme → 
 
 ## Beispiele und Quellen
 
-Unter [beispiele](beispiele) liegen kopierbare Beispieldateien für den gefahrlosen Einstieg. Die einzelnen Anleitungen erklären, wo sie einzufügen sind. Alle Konsolenbefehle verwenden Windows/PowerShell; ohne anderslautenden Hinweis beginnen sie im Repository-Hauptverzeichnis. Platzhalter wie `<Plan-ID>` müssen ersetzt werden und sind keine fertigen Befehle.
+Laufende Migrationen bestehender Prüfprogramme sind unter [migration](migration) dokumentiert, z. B. [PS05 – FB-HAT](migration/ps05-fb-hat.md).
+
+Unter [beispiele](beispiele) liegen kopierbare Beispieldateien
 
 Die Kapitel verlinken gezielt auf die Implementierung. Verbindlich für konkrete Feldnamen und Verhalten sind der aktuelle Quellcode, die Konfiguration der jeweiligen Installation und ihre freigegebenen Pläne. Die [bestehende technische README](../README.md) bleibt als ergänzende Referenz erhalten.
 
