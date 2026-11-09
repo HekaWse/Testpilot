@@ -94,7 +94,8 @@ public static class ExecutionPlanSerializer
             {
                 Order = step.Order, Name = step.Name, StepType = step.StepType, DeviceKey = step.DeviceKey,
                 ParametersJson = step.ParametersJson, LimitLow = step.LimitLow, LimitHigh = step.LimitHigh,
-                Unit = step.Unit, BreakpointFlag = step.BreakpointFlag
+                Unit = step.Unit, BreakpointFlag = step.BreakpointFlag,
+                RetryCount = step.RetryCount, RetryDelayMilliseconds = step.RetryDelayMilliseconds
             };
             Testpilot.Core.StepParameters.Validate(snapshot);
             if (step.ConfigureMeasurement is not null && step.StepType != Testpilot.Core.StepType.Measure)

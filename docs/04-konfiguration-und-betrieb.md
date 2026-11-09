@@ -173,7 +173,7 @@ Migration und Seed sind getrennte Starts: Werden beide Flags zugleich angegeben,
 dotnet run --project src\Testpilot.Editor -- --seed-system-types
 ```
 
-Seed fügt bekannte Typen/PS05-Ausstattung hinzu, **keinen passenden Artikelprüfplan** und keine Firmware. Altdaten/Adressen nicht ungeprüft produktiv verwenden.
+Seed fügt bekannte Typen, die PS05-Ausstattung (Multiplexer, Netzteil, Adapter, Prüfling und Golden Sample über `FSACommunication.dll`, J-Link, Scanner), die Prüfsysteme **PS05-1** (echte Treiber) und **PS05-Sim** (nur simulierte Treiber) sowie den **Entwurf des FB-HAT-Prüfplans 4001430-01 / 332351** hinzu. Vorhandene Daten werden nicht überschrieben: fehlende Geräte werden ergänzt, ein vorhandener Plan für ArtNr/FZ bleibt unverändert. Firmwaredateien werden nicht kopiert; der Plan verweist auf `\\heka.de\prod\pruefmittel\ATE\PS05\…`. Altdaten/Adressen nicht ungeprüft produktiv verwenden; den Entwurf vor der Freigabe prüfen (siehe [Migration FB-HAT](migration/ps05-fb-hat.md)).
 
 ### EF-Werkzeug
 

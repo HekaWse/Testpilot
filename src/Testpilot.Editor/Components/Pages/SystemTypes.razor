@@ -285,6 +285,7 @@
         {
             added = await TestSystemTypeSeed.SeedAsync(db);
             equipment = await StationSeed.SeedAsync(db);
+            equipment = [.. equipment, .. await Ps05FbHatPlanSeed.SeedAsync(db)];
         }
         await ReloadAsync(selectedSystem?.Id);
         if (added.Count == 0 && equipment.Count == 0)

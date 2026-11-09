@@ -54,8 +54,8 @@ public sealed class MeasureStepExecutor : IStepExecutor
             readings.Add(await multimeter.MeasureAsync(parameters.Channel, cancellationToken));
         var value = Average(readings, parameters.DiscardHighest ?? 0);
         var check = LimitChecker.Check(value, step.LimitLow, step.LimitHigh);
+        // A result holds either a number or a text; the single readings are in the device trace of the run.
         return new(double.IsFinite(value) ? value : null,
-            TextValue: readings.Count > 1 ? FormattableString.Invariant($"Einzelwerte: {string.Join("; ", readings)}") : null,
             Result: check.Result,
             ErrorMessage: check.Result == StepOutcome.Error ? "The measurement was not finite." : null);
     }
@@ -100,15 +100,16 @@ public sealed class DutCommandStepExecutor : IStepExecutor
             if (parameters.Expected is null)
                 return new(TextValue: text);
             var equal = string.Equals(text, parameters.Expected, StringComparison.Ordinal);
-            return new(equal ? 1 : 0, text, equal ? StepOutcome.Pass : StepOutcome.Fail,
-                equal ? null : $"Expected '{parameters.Expected}', read '{text}'.");
+            return new(TextValue: text, Result: equal ? StepOutcome.Pass : StepOutcome.Fail,
+                ErrorMessage: equal ? null : $"Expected '{parameters.Expected}', read '{text}'.");
         }
+        // A result holds either a number or a text; the complete response is in the device trace of the run.
         if (string.IsNullOrWhiteSpace(parameters.Output))
-            return new(1, response.ToString(), LimitChecker.Check(1, step.LimitLow, step.LimitHigh).Result);
+            return new(1, Result: LimitChecker.Check(1, step.LimitLow, step.LimitHigh).Result);
         var value = Formula.Evaluate(parameters.Output!, Resolve);
         var check = LimitChecker.Check(value, step.LimitLow, step.LimitHigh);
-        return new(double.IsFinite(value) ? value : null, response.ToString(), check.Result,
-            check.Result == StepOutcome.Error ? "The value is not finite." : null);
+        return new(double.IsFinite(value) ? value : null, Result: check.Result,
+            ErrorMessage: check.Result == StepOutcome.Error ? "The value is not finite." : null);
     }
 }
 
@@ -123,8 +124,8 @@ public sealed class CalculateStepExecutor : IStepExecutor
         var formula = StepParameters.Deserialize<CalculateParameters>(step.ParametersJson).Formula;
         var value = Formula.Evaluate(formula, name => runContext.Values.Resolve(name, runContext));
         var check = LimitChecker.Check(value, step.LimitLow, step.LimitHigh);
-        return Task.FromResult(new StepExecutionData(double.IsFinite(value) ? value : null, formula, check.Result,
-            check.Result == StepOutcome.Error ? "The result is not finite (e.g. division by zero)." : null));
+        return Task.FromResult(new StepExecutionData(double.IsFinite(value) ? value : null, Result: check.Result,
+            ErrorMessage: check.Result == StepOutcome.Error ? "The result is not finite (e.g. division by zero)." : null));
     }
 }
 

@@ -152,24 +152,34 @@ public sealed class Ag34970ATests
         await using (var db = database.NewContext())
         {
             await TestSystemTypeSeed.SeedAsync(db);
-            Assert.Equal(["PS05: 3 Geräte", "PS05-1"], await StationSeed.SeedAsync(db));
+            Assert.Equal(["PS05: 7 Geräte", "PS05-1", "PS05-Sim"], await StationSeed.SeedAsync(db));
         }
         await using (var db = database.NewContext())
             Assert.Empty(await StationSeed.SeedAsync(db));
 
         await using var verify = database.NewContext();
         var type = await verify.TestSystemTypes.Include(item => item.Devices).SingleAsync(item => item.Name == "PS05");
-        Assert.Equal(["Ag34970A", "Hmp2030", "Ps05Adapter"], type.Devices.Select(device => device.DeviceKey).Order());
+        Assert.Equal(["Ag34970A", "Dut", "GoldenSample", "Hmp2030", "JLink", "Ps05Adapter", "Scanner"],
+            type.Devices.Select(device => device.DeviceKey).Order(StringComparer.Ordinal));
         var station = await verify.Stations.Include(item => item.Devices).SingleAsync(item => item.Name == "PS05-1");
         Assert.Equal(type.Id, station.TestSystemTypeId);
         Assert.Equal("Ag34970Scpi", station.Devices.Single(device => device.DeviceKey == "Ag34970A").Driver);
         Assert.Equal("HmpScpi", station.Devices.Single(device => device.DeviceKey == "Hmp2030").Driver);
         Assert.Equal("Ps05Fixture", station.Devices.Single(device => device.DeviceKey == "Ps05Adapter").Driver);
-        // Every seeded station device must be accepted by its real driver.
+        Assert.Equal("FsaCommunication", station.Devices.Single(device => device.DeviceKey == "Dut").Driver);
+        Assert.Equal("SeggerJFlashCli", station.Devices.Single(device => device.DeviceKey == "JLink").Driver);
+        Assert.Equal("DatalogicMatrixSerial", station.Devices.Single(device => device.DeviceKey == "Scanner").Driver);
+        // Every seeded station device must be accepted by its driver and its catalog model.
         var registry = new DriverRegistry().AddAllDrivers();
         var definitions = SystemTypeDevices.CreateDefinitions(type);
-        foreach (var device in station.Devices.Where(device => device.DeviceKey != "Ag34970A"))
+        var simulation = await verify.Stations.Include(item => item.Devices).SingleAsync(item => item.Name == StationSeed.Ps05SimulationStation);
+        Assert.Equal(type.Devices.Count, simulation.Devices.Count);
+        foreach (var device in station.Devices.Where(device => device.DeviceKey != "Ag34970A").Concat(simulation.Devices))
+        {
             registry.GetProfile(DriverConfiguration.Parse(device.DeviceKey, device.Driver, device.ConnectionParametersJson));
+            var model = type.Devices.Single(item => item.DeviceKey == device.DeviceKey).Model;
+            DeviceCatalog.ValidateBinding(device.DeviceKey, model, device.Driver, device.ConnectionParametersJson);
+        }
         Assert.Equal(47, definitions["Ag34970A"].Profile.Channels.Count);
     }
 
@@ -189,11 +199,12 @@ public sealed class Ag34970ATests
         });
         await testDatabase.Context.SaveChangesAsync();
 
-        Assert.Equal(["PS05: 2 Geräte", "PS05-1"], await StationSeed.SeedAsync(testDatabase.Context));
+        Assert.Equal(["PS05: 6 Geräte", "PS05-1", "PS05-Sim"], await StationSeed.SeedAsync(testDatabase.Context));
 
         await using var verify = testDatabase.NewContext();
         var devices = await verify.SystemTypeDevices.Where(device => device.TestSystemTypeId == type.Id).ToListAsync();
-        Assert.Equal(["Ag34970A", "PSU1", "Ps05Adapter", "hmp2030"], devices.Select(device => device.DeviceKey).Order(StringComparer.Ordinal));
+        Assert.Equal(["Ag34970A", "Dut", "GoldenSample", "JLink", "PSU1", "Ps05Adapter", "Scanner", "hmp2030"],
+            devices.Select(device => device.DeviceKey).Order(StringComparer.Ordinal));
         Assert.Equal("HMP4040", devices.Single(device => device.DeviceKey == "hmp2030").Model);
     }
 

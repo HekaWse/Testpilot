@@ -103,7 +103,8 @@ public sealed class TestPlanService(TestpilotDbContext database, ILogger<TestPla
             {
                 Order = step.Order, Name = step.Name, StepType = step.StepType, DeviceKey = step.DeviceKey,
                 ParametersJson = step.ParametersJson, LimitLow = step.LimitLow, LimitHigh = step.LimitHigh,
-                Unit = step.Unit, BreakpointFlag = step.BreakpointFlag
+                Unit = step.Unit, BreakpointFlag = step.BreakpointFlag,
+                RetryCount = step.RetryCount, RetryDelayMilliseconds = step.RetryDelayMilliseconds
             }).ToList()
         };
         database.TestPlans.Add(copy);
@@ -124,7 +125,8 @@ public sealed class TestPlanService(TestpilotDbContext database, ILogger<TestPla
         source.Order == snapshot.Order && source.Name == snapshot.Name && source.StepType == snapshot.StepType
         && source.DeviceKey == snapshot.DeviceKey && source.ParametersJson == snapshot.ParametersJson
         && source.LimitLow == snapshot.LimitLow && source.LimitHigh == snapshot.LimitHigh
-        && source.Unit == snapshot.Unit && source.BreakpointFlag == snapshot.BreakpointFlag;
+        && source.Unit == snapshot.Unit && source.BreakpointFlag == snapshot.BreakpointFlag
+        && source.RetryCount == snapshot.RetryCount && source.RetryDelayMilliseconds == snapshot.RetryDelayMilliseconds;
 
     private async Task<TestPlan> FindAsync(Guid id, CancellationToken cancellationToken) =>
         await database.TestPlans.Include(x => x.Steps.OrderBy(step => step.Order)).SingleOrDefaultAsync(x => x.Id == id, cancellationToken)

@@ -66,7 +66,7 @@ Die zwei Gerätefamilien dürfen nicht verwechselt werden. Strom- und Vierdrahtk
 
 ### Standardtypen und YAML
 
-**Standardtypen anlegen** ergänzt die bekannten Typen und die vorhandene PS05-Beispielausstattung. Bestehende Namen und bereits vorhandene Geräte werden nicht pauschal überschrieben. Diese Funktion ist **kein Hardwaretest**. Übernommene Adressen, Slots und Altwerte müssen zum realen Aufbau passen.
+**Standardtypen anlegen** ergänzt die bekannten Typen, die PS05-Ausstattung, die Prüfsysteme PS05-1 und PS05-Sim (simuliert, zum Ausprobieren ohne Hardware) und den Entwurf des FB-HAT-Prüfplans 4001430-01 / 332351. Bestehende Namen, bereits vorhandene Geräte und vorhandene Pläne werden nicht überschrieben. Diese Funktion ist **kein Hardwaretest**. Übernommene Adressen, Slots und Altwerte müssen zum realen Aufbau passen.
 
 **YAML-Import und -Export:** Export enthält Typname, Beschreibung und Geräte samt Modelloptionen. Import legt einen **neuen** Typ an; Namen dürfen nicht kollidieren. Beispiel und Feldreferenz: [Datenformate](06-datenmodell-und-formate.md). Die YAML-Felder werden streng geprüft; Dokumente über 1 MiB werden abgelehnt.
 
@@ -187,15 +187,18 @@ Artikelnummer und FZ sind nach Erstellung nicht über das Formular änderbar. Di
 ### Schritte hinzufügen und bearbeiten
 
 - Ein Schritt benötigt einen Namen und Typ; gerätebezogene Typen zusätzlich ein passendes Gerät.
-- **Messung:** Gerät → Kanal → Messgröße auswählen. Einheit folgt aus der Messgröße. Bereich, NPLC und Grenzen eingeben. AC erlaubt keine NPLC-Angabe.
-- **Andere Typen:** Parameter als JSON-Objekt eingeben. Die [vollständige Schrittreferenz](06-datenmodell-und-formate.md#schrittparameter) enthält Beispiele für alle neun Typen.
+- **Messung:** Gerät → Kanal → Messgröße auswählen. Einheit folgt aus der Messgröße. Bereich, NPLC und Grenzen eingeben. AC und FREQ erlauben keine NPLC-Angabe. Optional **Anzahl Messungen** und **Höchste Werte verwerfen** (Mittelwert der übrigen).
+- **DUT-Befehl:** Gerät (z. B. Prüfling oder Golden Sample) und Befehl auswählen; für jedes Argument erscheint ein Feld. Danach entweder einen **Messwert aus der Antwort** (z. B. `{data[0]}`) mit Einheit und Grenzen, oder **Text** und **Erwarteter Text** (z. B. `{major}.{minor}.{deb}` gegen `{{plan.Firm_ver_dut}}`) angeben, oder beides leer lassen (bestätigt = 1).
+- **Berechnung:** Formel über Werte früherer Schritte, z. B. `{VCC Last 114} / {VCC Idle 103}`, mit Einheit und Grenzen. Die Bezüge sind in der [Schrittreferenz](06-datenmodell-und-formate.md#formeln-und-bezüge) beschrieben.
+- **Andere Typen:** Parameter als JSON-Objekt eingeben. Die [vollständige Schrittreferenz](06-datenmodell-und-formate.md#schrittparameter) enthält Beispiele für alle elf Typen.
+- **Wiederholungen bei Fehler** und **Pause vor Wiederholung** gelten für jeden Schritttyp: Ein Schritt mit Fail oder Error wird bis zu n-mal wiederholt; nur der letzte Versuch zählt.
 - **Breakpoint vor diesem Schritt** hat nur bei angehängtem .NET-Debugger eine Wirkung. Es ist kein bedienbarer Haltepunkt ohne Debugger; dafür gibt es Einzelschritt im Bedienprogramm.
 - **Schritt hinzufügen** / **Änderungen speichern** übernehmen die Eingabe.
 - Stift zum Bearbeiten; Pfeile zum Verschieben; Papierkorb zum Entfernen.
 
 ### Einheiten richtig eingeben
 
-Messfelder des Editors unterstützen deutsche Dezimalkommas und Einheitenpräfixe. Beispiele: `3,3 V`, `10 mV`, `1 kOhm`. Intern werden SI-Werte gespeichert: 10 mV = 0,01 V. `m` und `M` sind verschieden. Leere Grenzen sind einseitig beziehungsweise ohne Grenzprüfung; ein leeres Bereichsfeld bedeutet AUTO/Gerätestandard, nicht null Volt.
+Messfelder des Editors unterstützen deutsche Dezimalkommas und Einheitenpräfixe. Beispiele: `3,3 V`, `10 mV`, `1 kOhm`, `32,77 kHz`. Intern werden SI-Werte gespeichert: 10 mV = 0,01 V. `m` und `M` sind verschieden. °C, dBm und „ohne Einheit“ werden ohne Präfix eingegeben, z. B. `-55` oder `0,966`. Leere Grenzen sind einseitig beziehungsweise ohne Grenzprüfung; ein leeres Bereichsfeld bedeutet AUTO/Gerätestandard, nicht null Volt.
 
 Nicht verwechseln: **JSON-Zahlen und benannte Zahlenwerte verwenden Dezimalpunkte**, z. B. `3.3`.
 

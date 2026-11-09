@@ -47,6 +47,24 @@ public sealed class EditorReviewTests
         Assert.Equal(0.2, EditorInput.ParseOptionalNumber(text, "NPLC"));
     }
 
+    [Fact]
+    public void EditorInputAcceptsOnlyWholeNumbersForCounts()
+    {
+        Assert.Equal(29, EditorInput.ParseOptionalWholeNumber(" 29 ", "Wiederholungen"));
+        Assert.Null(EditorInput.ParseOptionalWholeNumber("", "Wiederholungen"));
+        var exception = Assert.Throws<FormatException>(() => EditorInput.ParseOptionalWholeNumber("2,5", "Wiederholungen"));
+        Assert.StartsWith("Wiederholungen:", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("-55 dBm", MeasurementUnit.DecibelMilliwatt, -55)]
+    [InlineData("0,976", MeasurementUnit.Number, 0.976)]
+    [InlineData("32,7647 kHz", MeasurementUnit.Hertz, 32764.7)]
+    public void EditorInputParsesLimitsOfTheNewUnits(string text, MeasurementUnit unit, double expected)
+    {
+        Assert.Equal(expected, EditorInput.ParseOptionalSi(text, unit, "Grenzwert")!.Value, 9);
+    }
+
     [Theory]
     [InlineData("3,3 m", 0.0033)]
     [InlineData("3.3 mV", 0.0033)]

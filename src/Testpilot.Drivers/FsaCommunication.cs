@@ -67,12 +67,12 @@ internal sealed class FsaCommunication : IDutCommunication
             await Task.Run(() => instance.GetType().GetMethod("Close", Type.EmptyTypes)?.Invoke(instance, null), CancellationToken.None);
     }
 
-    public async Task<string> IdentifyAsync(CancellationToken cancellationToken = default)
+    // The sequencer identifies all devices before the first step, when the device under test is not yet programmed.
+    // So no command is sent; the firmware version is a step of the test plan.
+    public Task<string> IdentifyAsync(CancellationToken cancellationToken = default)
     {
-        var response = await ExecuteAsync("ReadFirmwareVersion", [], cancellationToken);
-        return response.Success
-            ? $"FSA,{options.Port},{response.Outputs["major"][0]}.{response.Outputs["minor"][0]}.{response.Outputs["deb"][0]}"
-            : $"FSA,{options.Port}";
+        var instance = EnsureConnected(cancellationToken);
+        return Task.FromResult($"FSA,{options.Port},FSACommunication {instance.GetType().Assembly.GetName().Version}");
     }
 
     public Task<SelfCheckResult> SelfCheckAsync(CancellationToken cancellationToken = default)

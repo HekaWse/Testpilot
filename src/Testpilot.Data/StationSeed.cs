@@ -6,8 +6,9 @@ namespace Testpilot.Data;
 /// <summary>
 /// Known equipment of the test system types and the concrete test systems built from it (as specified by the test
 /// department). Like <see cref="TestSystemTypeSeed"/> it only adds what is missing: a device only when the type has no
-/// device with that key, a test system only when no system with that name exists. Missing known station settings are
-/// added without overwriting existing aliases. Existing devices and settings are never changed or removed.
+/// device with that key, a test system only when no system with that name exists. An existing test system gets the
+/// devices it is missing (by key). Missing known station settings are added without overwriting existing aliases.
+/// Existing devices and settings are never changed or removed.
 /// Run <see cref="TestSystemTypeSeed"/> first.
 /// </summary>
 public static class StationSeed
@@ -16,6 +17,32 @@ public static class StationSeed
     // The HMP2030 is one instrument: PSU1/PSU2 of the legacy program are its outputs 1 and 2 (SetPower channel 1/2).
     public const string Ps05Ag34970AResource = "TCPIP0::192.168.178.100::inst0::INSTR";
     public const string Ps05Hmp2030Resource = "TCPIP0::192.168.178.101::5025::SOCKET";
+
+    /// <summary>PS05 with simulated drivers: runs the FB-HAT plan at the desk (values in the range of a good unit).</summary>
+    public const string Ps05SimulationStation = "PS05-Sim";
+
+    // J-Flash command line of the legacy driver Segger_JFlash.c (HIDE_EXE = "No": no -hide). The project, image address
+    // and log file belong to the firmware of the test plan; the J-Flash program and the J-Link serial to the station.
+    private const string JFlashConnection = """
+        {"executablePath":"{{station.JFlashExecutablePath}}","arguments":["-openprj{{plan.PROJFILE_PATH_1}}","-open{{imagePath}},{{plan.START_ADDRESS_1}}","-jflashlog{{plan.ERRORFILE_PATH_1}}","-usb{{station.SERIAL_NUMBER_1}}","-auto","-exit"]}
+        """;
+
+    // Simulated readings of a good FB-HAT, in the order the FB-HAT plan measures them (sequences: one value per
+    // measurement, the last repeats). 101: EEPROM supply discharges, then is on; 114: VCC under load (2.4.16), idle, load,
+    // idle (LED tests); 121: load, send 433/868, receive 433/868 current; 115: PT1000 at 25 °C.
+    private const string SimulatedMeterConnection = """
+        {"channels":[101,103,108,109,110,111,112,113,114,115,121,201,202,203,204,205,206,207],
+         "readings":{"103|VOLT:DC":3.0,"108|FREQ":32768,"109|FRES":1000.2,"109|VOLT:DC":0.004,"112|VOLT:DC":0.95,"113|VOLT:DC":0.95,"115|RES":1097.75},
+         "sequences":{"101|VOLT:DC":[0.5,0.05,2.995],"110|VOLT:DC":[0,0,0.078],"111|VOLT:DC":[0,0.078],
+                      "114|VOLT:DC":[2.9,2.995,2.93,2.995],"121|CURR:DC":[0.145,0.017,0.02,0.009,0.009]}}
+        """;
+
+    // The golden sample receives what the DUT sends (2.8) and the DUT what the golden sample sends (2.9).
+    // DUT rssi868 -54 is above the clipping value -55, so 2.9.7 corrects the threshold to -105.
+    private const string SimulatedDutConnection = """
+        {"firmware":"1.6.20","rssi433":-57,"rssi868":-54,"supplyInfo":[25,2995,2930,0],"genericData":{"9|5":[5]},"toggleCommands":["5|5","15|3","15|9"]}
+        """;
+    private const string SimulatedGoldenSampleConnection = """{"rssi433":-60,"rssi868":-61}""";
 
     private sealed record TypeDevice(string Key, string Model, string Description, string OptionsJson);
     private sealed record InstalledDevice(string Key, string Driver, string ConnectionParametersJson);
@@ -47,7 +74,11 @@ public static class StationSeed
             new("Ag34970A", "34970A", "Datenerfassung mit 34901A (Slot 1), 34903A (Slot 2), 34907A (Slot 3)",
                 """{"slots":{"1":"34901A","2":"34903A","3":"34907A"}}"""),
             new("Hmp2030", "HMP2030", "Netzteil, Ausgang 1 = PSU1, Ausgang 2 = PSU2", "{}"),
-            new("Ps05Adapter", "PS05-Adapter", "Adapterschalter (301) und Niederhalter/Lampe (302) über den 34970A", "{}")
+            new("Ps05Adapter", "PS05-Adapter", "Adapterschalter (301) und Niederhalter/Lampe (302) über den 34970A", "{}"),
+            new("Dut", "FSA", "Prüfling (FSA) über den COM-Port DUT", "{}"),
+            new("GoldenSample", "FSA", "Golden Sample (FSA) über den COM-Port GS, nur über USB versorgt", "{}"),
+            new("JLink", "J-Link", "SEGGER J-Link zum Programmieren der Firmware", "{}"),
+            new("Scanner", "Matrix200", "Code-Leser für die Seriennummer", "{}")
         ]
     };
 
@@ -58,7 +89,21 @@ public static class StationSeed
             new("Ag34970A", "Ag34970Scpi", $$"""{"resource":"{{Ps05Ag34970AResource}}"}"""),
             new("Hmp2030", "HmpScpi", $$"""{"resource":"{{Ps05Hmp2030Resource}}","model":"HMP2030"}"""),
             // The adapter outputs are on the same 34970A, so the adapter control uses its address.
-            new("Ps05Adapter", "Ps05Fixture", $$"""{"resource":"{{Ps05Ag34970AResource}}"}""")
+            new("Ps05Adapter", "Ps05Fixture", $$"""{"resource":"{{Ps05Ag34970AResource}}"}"""),
+            new("Dut", "FsaCommunication", """{"port":"{{station.COMPort_Debug}}"}"""),
+            new("GoldenSample", "FsaCommunication", """{"port":"{{station.COMPort_Debug_Ref}}"}"""),
+            new("JLink", "SeggerJFlashCli", JFlashConnection),
+            new("Scanner", "DatalogicMatrixSerial", """{"model":"Matrix200","portName":"{{station.COMPort_Datalogic}}"}""")
+        ]),
+        (Ps05SimulationStation, "PS05", "PS05 mit simulierten Geräten (Prüfplan am Schreibtisch ausführen)",
+        [
+            new("Ag34970A", "SimulatedSwitchMultimeter", SimulatedMeterConnection),
+            new("Hmp2030", "SimulatedPowerSupply", """{"channels":[1,2]}"""),
+            new("Ps05Adapter", "SimulatedFixture", "{}"),
+            new("Dut", "SimulatedDutCommunication", SimulatedDutConnection),
+            new("GoldenSample", "SimulatedDutCommunication", SimulatedGoldenSampleConnection),
+            new("JLink", "SimulatedProgrammer", "{}"),
+            new("Scanner", "SimulatedBarcodeScanner", """{"barcode":"1234567890"}""")
         ])
     ];
 
@@ -84,18 +129,37 @@ public static class StationSeed
             added.Add($"{type.Name}: {missing.Count} Geräte");
         }
 
-        var stationNames = await db.Stations.Select(station => station.Name).ToListAsync(cancellationToken);
-        var existingStations = new HashSet<string>(stationNames, StringComparer.OrdinalIgnoreCase);
+        var existingStations = await db.Stations.Include(station => station.Devices).ToListAsync(cancellationToken);
         foreach (var (name, typeName, description, devices) in Stations)
         {
             var type = types.SingleOrDefault(item => string.Equals(item.Name, typeName, StringComparison.OrdinalIgnoreCase));
+            if (type is null)
+                continue;
+            var existing = existingStations.SingleOrDefault(station => string.Equals(station.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                // Only devices of the same test system type; a device the station already has is never changed.
+                var missingDevices = existing.TestSystemTypeId == type.Id
+                    ? devices.Where(device => HasDevice(type, device.Key) && !existing.Devices.Any(item =>
+                        string.Equals(item.DeviceKey, device.Key, StringComparison.OrdinalIgnoreCase))).ToList()
+                    : [];
+                foreach (var device in missingDevices)
+                    db.StationDevices.Add(new StationDevice
+                    {
+                        StationId = existing.Id, DeviceKey = device.Key, Driver = device.Driver,
+                        ConnectionParametersJson = device.ConnectionParametersJson
+                    });
+                if (missingDevices.Count != 0)
+                    added.Add($"{existing.Name}: {missingDevices.Count} Geräte");
+                continue;
+            }
             // Only when the type has every device of the system; otherwise the device keys would not match.
-            if (type is null || existingStations.Contains(name) || devices.Any(device => !HasDevice(type, device.Key)))
+            if (devices.Any(device => !HasDevice(type, device.Key)))
                 continue;
             db.Stations.Add(new Station
             {
                 Name = name, Description = description, TestSystemTypeId = type.Id,
-                SettingsJson = NamedSettings.Serialize(Ps05Settings),
+                SettingsJson = name == Ps05SimulationStation ? "[]" : NamedSettings.Serialize(Ps05Settings),
                 Devices = devices.Select(device => new StationDevice
                 {
                     DeviceKey = device.Key, Driver = device.Driver, ConnectionParametersJson = device.ConnectionParametersJson

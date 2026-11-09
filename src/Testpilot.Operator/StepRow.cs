@@ -109,6 +109,8 @@ public sealed class StepRow : ObservableObject
         StepType.OperatorPrompt => "Bedienerabfrage",
         StepType.External => "Externes Programm",
         StepType.CustomCode => "Sonderschritt",
+        StepType.DutCommand => "DUT-Befehl",
+        StepType.Calculate => "Berechnung",
         _ => stepType.ToString()
     };
 }

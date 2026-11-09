@@ -32,12 +32,23 @@ public static class EditorInput
         }
         catch (FormatException)
         {
+            var example = Units.UsesPrefixes(unit) ? $"3,3 m{Units.Symbol(unit)}" : $"-55 {Units.Symbol(unit)}".TrimEnd();
             throw new FormatException(
-                $"{name}: '{text.Trim()}' ist kein gültiger Wert in {Units.Symbol(unit)} (Beispiel: 3,3 m{Units.Symbol(unit)}).");
+                $"{name}: '{text.Trim()}' ist kein gültiger Wert in {Units.DisplayName(unit)} (Beispiel: {example}).");
         }
     }
 
     public static string FormatNumber(double value) => value.ToString("G", German);
+
+    /// <summary>Parses a whole number such as a count; empty input means "not set".</summary>
+    public static int? ParseOptionalWholeNumber(string? text, string name)
+    {
+        var value = ParseOptionalNumber(text, name);
+        if (value is null) return null;
+        if (Math.Truncate(value.Value) != value.Value || Math.Abs(value.Value) > int.MaxValue)
+            throw new FormatException($"{name}: '{text!.Trim()}' ist keine ganze Zahl.");
+        return (int)value.Value;
+    }
 
     private static string NormalizeDecimalSeparator(string text, string name)
     {

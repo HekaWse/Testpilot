@@ -142,13 +142,72 @@
                                     </MudItem>
                                     <MudItem xs="12" sm="3"><MudTextField Label="Bereich (z. B. 10 mV)" @bind-Value="measureRangeInput" /></MudItem>
                                     <MudItem xs="12" sm="3"><MudTextField Label="NPLC (z. B. 0,2)" @bind-Value="measureNplcInput" /></MudItem>
-                                    <MudItem xs="12" sm="3"><MudTextField Label="Grenzwert unten (z. B. 3,2 V)" @bind-Value="limitLowInput" /></MudItem>
-                                    <MudItem xs="12" sm="3"><MudTextField Label="Grenzwert oben (z. B. 3,4 V)" @bind-Value="limitHighInput" /></MudItem>
+                                    <MudItem xs="12" sm="3"><MudTextField Label="Anzahl Messungen (leer = 1)" @bind-Value="samplesInput" /></MudItem>
+                                    <MudItem xs="12" sm="3"><MudTextField Label="Höchste Werte verwerfen (leer = 0)" @bind-Value="discardInput" /></MudItem>
+                                }
+                                else if (stepType == StepType.DutCommand)
+                                {
+                                    var operation = FsaOperations.Find(dutOperation);
+                                    <MudItem xs="12" sm="6">
+                                        <MudSelect T="string" Label="Befehl" Value="@dutOperation" ValueChanged="DutOperationChanged">
+                                            @foreach (var item in FsaOperations.All)
+                                            {
+                                                <MudSelectItem Value="@item.Name">@item.Name — @item.Description</MudSelectItem>
+                                            }
+                                        </MudSelect>
+                                    </MudItem>
+                                    @for (var index = 0; index < dutArguments.Count; index++)
+                                    {
+                                        var argumentIndex = index;
+                                        <MudItem xs="12" sm="3">
+                                            <MudTextField T="string" Label="@(operation is null ? $"Argument {argumentIndex + 1}" : operation.Inputs[argumentIndex])"
+                                                          Value="@dutArguments[argumentIndex]" ValueChanged="@(value => dutArguments[argumentIndex] = value)" />
+                                        </MudItem>
+                                    }
+                                    <MudItem xs="12" sm="4"><MudTextField Label="Messwert aus der Antwort (z. B. {data[0]})" @bind-Value="dutOutput" /></MudItem>
+                                    <MudItem xs="12" sm="4"><MudTextField Label="Text aus der Antwort (z. B. {major}.{minor}.{deb})" @bind-Value="dutText" /></MudItem>
+                                    <MudItem xs="12" sm="4"><MudTextField Label="Erwarteter Text" @bind-Value="dutExpected" /></MudItem>
+                                    <MudItem xs="12">
+                                        <MudText Typo="Typo.caption">
+                                            Rückgabewerte: @(operation is null || operation.Outputs.Count == 0 ? "keine" : string.Join(", ", operation.Outputs.Select(output => "{" + output + "}"))).
+                                            Argumente sind Zahlen oder Formeln, z. B. <code>{serial}</code> oder <code>{2.9.7 Uesw}</code>.
+                                            Später sind die Rückgabewerte als <code>{Schrittname:Rückgabewert}</code> verfügbar.
+                                            Ohne Messwert und Text ist der Wert 1, wenn das Gerät den Befehl bestätigt.
+                                        </MudText>
+                                    </MudItem>
+                                }
+                                else if (stepType == StepType.Calculate)
+                                {
+                                    <MudItem xs="12"><MudTextField Label="Formel (z. B. {VCC Last} / {VCC Idle})" @bind-Value="calculateFormula" /></MudItem>
+                                    <MudItem xs="12">
+                                        <MudText Typo="Typo.caption">
+                                            In geschweiften Klammern stehen Werte früherer Schritte (Schrittname) oder DUT-Rückgabewerte (<code>{Schrittname:Rückgabewert}</code>).
+                                            Erlaubt: + − * / ( ), Vergleiche (== != &lt; &lt;= &gt; &gt;=, Ergebnis 1 oder 0) sowie abs, trunc, round, min, max, mean, sum, count.
+                                        </MudText>
+                                    </MudItem>
                                 }
                                 else
                                 {
                                     <MudItem xs="12"><MudTextField Label="Schrittparameter (JSON-Objekt)" @bind-Value="parametersJson" Lines="3" Sizing="InputSizing.Auto" /></MudItem>
                                 }
+                                @if (StepParameters.HasValue(stepType))
+                                {
+                                    @if (stepType != StepType.Measure)
+                                    {
+                                        <MudItem xs="12" sm="3">
+                                            <MudSelect T="MeasurementUnit" Label="Einheit" @bind-Value="valueUnit">
+                                                @foreach (var unit in Enum.GetValues<MeasurementUnit>())
+                                                {
+                                                    <MudSelectItem Value="@unit">@Units.DisplayName(unit)</MudSelectItem>
+                                                }
+                                            </MudSelect>
+                                        </MudItem>
+                                    }
+                                    <MudItem xs="12" sm="3"><MudTextField Label="@($"Grenzwert unten{LimitExample("3,2")}")" @bind-Value="limitLowInput" /></MudItem>
+                                    <MudItem xs="12" sm="3"><MudTextField Label="@($"Grenzwert oben{LimitExample("3,4")}")" @bind-Value="limitHighInput" /></MudItem>
+                                }
+                                <MudItem xs="12" sm="3"><MudTextField Label="Wiederholungen bei Fehler (leer = 0)" @bind-Value="retryCountInput" /></MudItem>
+                                <MudItem xs="12" sm="3"><MudTextField Label="Pause vor Wiederholung (ms)" @bind-Value="retryDelayInput" Disabled="@string.IsNullOrWhiteSpace(retryCountInput)" /></MudItem>
                                 <MudItem xs="12" sm="6"><MudCheckBox T="bool" Label="Breakpoint vor diesem Schritt" @bind-Value="breakpoint" /></MudItem>
                             </MudGrid>
                             @if (stepType == StepType.Measure && (selectedProfile is null || availableChannels.Count == 0 || availableFunctions.Count == 0))
@@ -187,7 +246,7 @@
                                 <MudTd>@context.Name</MudTd>
                                 <MudTd>@StepTypeText(context.StepType)</MudTd>
                                 <MudTd>@context.DeviceKey<br /><code>@context.ParametersJson</code></MudTd>
-                                <MudTd>@FormatLimit(context.LimitLow, context.Unit) – @FormatLimit(context.LimitHigh, context.Unit) @if (context.BreakpointFlag) { <span> · Breakpoint</span> }</MudTd>
+                                <MudTd>@FormatLimit(context.LimitLow, context.Unit) – @FormatLimit(context.LimitHigh, context.Unit) @if (context.BreakpointFlag) { <span> · Breakpoint</span> } @if (context.RetryCount > 0) { <span> · @context.RetryCount× wiederholen</span> }</MudTd>
                                 <MudTd>
                                     @if (selectedPlan.Status == PlanStatus.Draft)
                                     {
@@ -295,6 +354,17 @@
     private string limitLowInput = "";
     private string limitHighInput = "";
     private MeasurementUnit? measureUnit = MeasurementUnit.Volt;
+    private string samplesInput = "";
+    private string discardInput = "";
+    private MeasurementUnit valueUnit = MeasurementUnit.Number;
+    private string dutOperation = FsaOperations.All[0].Name;
+    private List<string> dutArguments = [];
+    private string dutOutput = "";
+    private string dutText = "";
+    private string dutExpected = "";
+    private string calculateFormula = "";
+    private string retryCountInput = "";
+    private string retryDelayInput = "";
     private bool breakpoint;
     private Guid? editingStepId;
     private string parametersJson = "{}";
@@ -419,6 +489,7 @@
             StepType.SetPower => DeviceCapability.PowerSupply,
             StepType.Program => DeviceCapability.Programmer,
             StepType.Scan => DeviceCapability.BarcodeScanner,
+            StepType.DutCommand => DeviceCapability.DutCommunication,
             _ => (DeviceCapability?)null
         };
         return (SelectedSystem?.Devices ?? []).Where(device => systemDefinitions.TryGetValue(device.DeviceKey, out var definition)
@@ -473,6 +544,19 @@
         measureFunction = value;
         measureUnit = UnitForFunction(value);
     }
+
+    private void DutOperationChanged(string value)
+    {
+        dutOperation = value;
+        var count = FsaOperations.Find(value)?.Inputs.Count ?? dutArguments.Count;
+        dutArguments = [.. dutArguments.Take(count), .. Enumerable.Repeat("", Math.Max(0, count - dutArguments.Count))];
+    }
+
+    private MeasurementUnit? CurrentUnit => stepType == StepType.Measure ? measureUnit : valueUnit;
+
+    private string LimitExample(string number) => CurrentUnit is { } unit
+        ? $" (z. B. {number}{(Units.Symbol(unit).Length == 0 ? "" : " " + Units.Symbol(unit))})"
+        : "";
 
     private void ChannelChanged(int channel)
     {
@@ -575,18 +659,43 @@
             breakpoint = step.BreakpointFlag;
             parametersJson = step.ParametersJson;
             DeviceChanged(step.DeviceKey);
-            if (step.StepType != StepType.Measure) return;
-
-            var measure = StepParameters.Deserialize<MeasureParameters>(step.ParametersJson);
-            if (availableChannels.Any(channel => channel.Number == measure.Channel))
-                ChannelChanged(measure.Channel);
-            measureChannel = measure.Channel;
-            measureFunction = measure.Function;
-            measureUnit = step.Unit ?? UnitForFunction(measure.Function);
-            measureRangeInput = measure.Range.HasValue ? Units.Format(measure.Range.Value, measureUnit.Value, culture: EditorInput.German) : "";
-            measureNplcInput = measure.Nplc.HasValue ? EditorInput.FormatNumber(measure.Nplc.Value) : "";
-            limitLowInput = step.LimitLow.HasValue ? Units.Format(step.LimitLow.Value, measureUnit.Value, culture: EditorInput.German) : "";
-            limitHighInput = step.LimitHigh.HasValue ? Units.Format(step.LimitHigh.Value, measureUnit.Value, culture: EditorInput.German) : "";
+            ClearStepInputs();
+            breakpoint = step.BreakpointFlag;
+            retryCountInput = step.RetryCount == 0 ? "" : step.RetryCount.ToString(EditorInput.German);
+            retryDelayInput = step.RetryDelayMilliseconds == 0 ? "" : EditorInput.FormatNumber(step.RetryDelayMilliseconds);
+            switch (step.StepType)
+            {
+                case StepType.Measure:
+                    var measure = StepParameters.Deserialize<MeasureParameters>(step.ParametersJson);
+                    if (availableChannels.Any(channel => channel.Number == measure.Channel))
+                        ChannelChanged(measure.Channel);
+                    measureChannel = measure.Channel;
+                    measureFunction = measure.Function;
+                    measureUnit = step.Unit ?? UnitForFunction(measure.Function);
+                    measureRangeInput = measure.Range.HasValue ? Units.Format(measure.Range.Value, measureUnit.Value, culture: EditorInput.German) : "";
+                    measureNplcInput = measure.Nplc.HasValue ? EditorInput.FormatNumber(measure.Nplc.Value) : "";
+                    samplesInput = measure.Samples?.ToString(EditorInput.German) ?? "";
+                    discardInput = measure.DiscardHighest?.ToString(EditorInput.German) ?? "";
+                    break;
+                case StepType.DutCommand:
+                    var command = StepParameters.Deserialize<DutCommandParameters>(step.ParametersJson);
+                    dutOperation = command.Operation;
+                    dutArguments = [.. command.Arguments ?? []];
+                    dutOutput = command.Output ?? "";
+                    dutText = command.Text ?? "";
+                    dutExpected = command.Expected ?? "";
+                    break;
+                case StepType.Calculate:
+                    calculateFormula = StepParameters.Deserialize<CalculateParameters>(step.ParametersJson).Formula;
+                    break;
+            }
+            if (step.StepType != StepType.Measure)
+                valueUnit = step.Unit ?? MeasurementUnit.Number;
+            if (CurrentUnit is { } limitUnit && StepParameters.HasValue(step.StepType))
+            {
+                limitLowInput = step.LimitLow.HasValue ? Units.Format(step.LimitLow.Value, limitUnit, culture: EditorInput.German) : "";
+                limitHighInput = step.LimitHigh.HasValue ? Units.Format(step.LimitHigh.Value, limitUnit, culture: EditorInput.German) : "";
+            }
         }
         catch (Exception exception) when (EditorErrors.IsExpected(exception))
         {
@@ -609,8 +718,19 @@
     {
         measureRangeInput = "";
         measureNplcInput = "";
+        samplesInput = "";
+        discardInput = "";
         limitLowInput = "";
         limitHighInput = "";
+        valueUnit = MeasurementUnit.Number;
+        dutOperation = FsaOperations.All[0].Name;
+        dutArguments = [];
+        dutOutput = "";
+        dutText = "";
+        dutExpected = "";
+        calculateFormula = "";
+        retryCountInput = "";
+        retryDelayInput = "";
         breakpoint = false;
     }
 
@@ -639,10 +759,29 @@
             var range = EditorInput.ParseOptionalSi(measureRangeInput, unit.Value, "Bereich");
             var nplc = EditorInput.ParseOptionalNumber(measureNplcInput, "NPLC");
             new MeasurementConfiguration(measureChannel, measureFunction, range, nplc).Validate(selectedProfile);
+            parameters = StepParameters.Serialize(new MeasureParameters(measureChannel, measureFunction, range, nplc,
+                EditorInput.ParseOptionalWholeNumber(samplesInput, "Anzahl Messungen"),
+                EditorInput.ParseOptionalWholeNumber(discardInput, "Höchste Werte verwerfen")));
+        }
+        else if (stepType == StepType.DutCommand)
+        {
+            unit = valueUnit;
+            parameters = StepParameters.Serialize(new DutCommandParameters(dutOperation,
+                dutArguments.Count == 0 ? null : dutArguments.Select(argument => argument.Trim()).ToArray(),
+                EmptyToNull(dutOutput), EmptyToNull(dutText), EmptyToNull(dutExpected)));
+        }
+        else if (stepType == StepType.Calculate)
+        {
+            unit = valueUnit;
+            parameters = StepParameters.Serialize(new CalculateParameters(calculateFormula.Trim()));
+        }
+        if (unit is not null)
+        {
             low = EditorInput.ParseOptionalSi(limitLowInput, unit.Value, "Grenzwert unten");
             high = EditorInput.ParseOptionalSi(limitHighInput, unit.Value, "Grenzwert oben");
-            parameters = StepParameters.Serialize(new MeasureParameters(measureChannel, measureFunction, range, nplc));
         }
+        var retryCount = EditorInput.ParseOptionalWholeNumber(retryCountInput, "Wiederholungen") ?? 0;
+        var retryDelay = retryCount == 0 ? 0 : EditorInput.ParseOptionalNumber(retryDelayInput, "Pause vor Wiederholung") ?? 0;
 
         await using var db = await DbFactory.CreateDbContextAsync();
         var isEditing = editingStepId.HasValue;
@@ -666,6 +805,8 @@
         step.LimitLow = low;
         step.LimitHigh = high;
         step.BreakpointFlag = breakpoint;
+        step.RetryCount = retryCount;
+        step.RetryDelayMilliseconds = retryDelay;
         StepParameters.Validate(step);
         await db.SaveChangesAsync();
 
@@ -780,7 +921,8 @@
         Notify("Neuer Entwurf wurde erstellt.", Severity.Success);
     });
 
-    private static bool RequiresDevice(StepType type) => type is StepType.Measure or StepType.Relay or StepType.SetPower or StepType.Program or StepType.Scan;
+    private static bool RequiresDevice(StepType type) => type is StepType.Measure or StepType.Relay or StepType.SetPower or StepType.Program or StepType.Scan or StepType.DutCommand;
+    private static string? EmptyToNull(string text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
     private static string FormatLimit(double? value, MeasurementUnit? unit) => value.HasValue && unit.HasValue
         ? Units.FormatAuto(value.Value, unit.Value, EditorInput.German)
         : "—";
@@ -809,15 +951,21 @@
         StepType.OperatorPrompt => "Bedienerabfrage",
         StepType.External => "Externes Programm",
         StepType.CustomCode => "Sonderaktion",
+        StepType.DutCommand => "DUT-Befehl",
+        StepType.Calculate => "Berechnung",
         _ => type.ToString()
     };
-    private static MeasurementUnit UnitForFunction(string function) => function switch
+    private static MeasurementUnit UnitForFunction(string function)
     {
-        "VOLT:DC" or "VOLT:AC" => MeasurementUnit.Volt,
-        "CURR:DC" or "CURR:AC" => MeasurementUnit.Ampere,
-        "RES" or "FRES" => MeasurementUnit.Ohm,
-        _ => throw new ArgumentException($"Unbekannte Messfunktion '{function}'.")
-    };
+        try
+        {
+            return StepParameters.UnitOf(function);
+        }
+        catch (ArgumentException)
+        {
+            throw new ArgumentException($"Unbekannte Messfunktion '{function}'.");
+        }
+    }
     private static string DefaultParameters(StepType type) => type switch
     {
         StepType.Relay => "{\"channel\":1,\"closed\":true}",

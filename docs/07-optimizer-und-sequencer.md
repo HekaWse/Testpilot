@@ -128,7 +128,8 @@ Kontext / Einstellungen / Custom-Handler prüfen
 	  -> pro Prüfschritt:
 		   Debugbreak / optionale Einzelschrittpause
 		   gegebenenfalls Messkonfiguration
-		   passenden Executor ausführen
+		   passenden Executor ausführen (bei Fail/Error bis zu RetryCount-mal wiederholen)
+		   Wert unter dem Schrittnamen für spätere Formeln merken
 		   Ergebnis und Fortschritt erzeugen
   -> finally:
 	  Safe State für alle erworbenen Geräte versuchen
@@ -138,6 +139,14 @@ Kontext / Einstellungen / Custom-Handler prüfen
   -> JSON-Export versuchen
   -> SequenceRunResult zurückgeben
 ```
+
+### Laufwerte für Formeln
+
+`RunContext.Values` sammelt während des Laufs alle endlichen Schrittwerte unter dem Schrittnamen und alle Rückgabewerte von DUT-Befehlen als `Schrittname:Ausgabe` (Liste von Zahlen). `Calculate`-Schritte sowie Argumente und Ausgaben von `DutCommand` lesen daraus. Ein noch nicht vorhandener Bezug ist ein Fehler (Error, restliche Schritte Skipped). Die Werte leben nur im Speicher des Laufs; gespeichert werden die normalen Schrittergebnisse.
+
+### Wiederholung
+
+Mit `RetryCount > 0` führt der Runner einen Schritt erneut aus, wenn er Fail oder Error liefert oder eine Exception wirft (außer Abbruch). Zwischen den Versuchen wartet er `RetryDelayMilliseconds`. Die Messkonfiguration wird pro Versuch erneut gesendet, falls der Schritt eine hat. Nur der letzte Versuch wird Ergebnis; jeder Wiederholungsgrund steht im Log.
 
 ### DeviceSession
 
@@ -197,6 +206,7 @@ Zuordnung anhand der tatsächlich benötigten Schritt-Fähigkeit:
 | SetPower | SimulatedPowerSupply |
 | Program | SimulatedProgrammer |
 | Scan | SimulatedBarcodeScanner |
+| DutCommand | SimulatedDutCommunication |
 
 Verwendete Kanäle werden in das Simulationsprofil aufgenommen. Verbindungsparameter wie vorgegebene Messwerte bleiben nur erhalten, wenn bereits genau derselbe simulierte Treiber gebunden war; reale Verbindungsparameter werden nicht blind übernommen.
 

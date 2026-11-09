@@ -61,6 +61,8 @@ public sealed class PlanServiceTests
     {
         await using var db = await TestDatabase.CreateAsync();
         var source = TestDatabase.Draft();
+        source.Steps[0].RetryCount = 2;
+        source.Steps[0].RetryDelayMilliseconds = 25;
         db.Context.Add(source);
         await db.Context.SaveChangesAsync();
         await db.ReleaseAsync(source);
@@ -72,6 +74,7 @@ public sealed class PlanServiceTests
         Assert.NotEqual(source.Steps[0].Id, copy.Steps[0].Id);
         Assert.Equal(source.Steps[0].ParametersJson, copy.Steps[0].ParametersJson);
         Assert.True(copy.Steps[0].BreakpointFlag);
+        Assert.Equal((2, 25), (copy.Steps[0].RetryCount, copy.Steps[0].RetryDelayMilliseconds));
         copy.Steps[0].LimitLow = 3.1;
         await db.Context.SaveChangesAsync();
         Assert.Equal(3.2, source.Steps[0].LimitLow);

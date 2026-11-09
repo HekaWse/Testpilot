@@ -52,6 +52,7 @@ Tracing-Decorator protokolliert Operation/Befehl, Antwort und Dauer und wirft Fe
 | Matrix120/Matrix200 | DatalogicMatrixSerial | SimulatedBarcodeScanner | Serielles Legacyprotokoll implementiert. |
 | PS05-Adapter | Ps05Fixture | SimulatedFixture | Bestehende PS05-Belegung implementiert. |
 | J-Link | SeggerJFlashCli | SimulatedProgrammer | Konfigurierbarer Prozessadapter. |
+| FSA (Prüfling/Golden Sample) | FsaCommunication | SimulatedDutCommunication | Lädt die Produktions-DLL `FSACommunication.dll`; Laden unter .NET 10 am Prüfplatz noch zu bestätigen. |
 | SimDmm/SimPowerSupply | keine | entsprechender simulierter Treiber | Kanaloptionen erforderlich. |
 | SimProgrammer/SimCodeReader/SimFixture | keine | entsprechender simulierter Treiber | Hardwarefreie Entwicklung. |
 
@@ -162,6 +163,16 @@ Bytes werden mit `SOUR:DIG:DATA:BYTE …,(@302)` geschrieben. Bitbedeutungen sin
 ```
 
 Program-Schritt: `{"filePath":"{{plan.FirmwarePath}}"}`. `{{imagePath}}` ist ein **eigener Treibertoken**, kein Planalias. Der Treiber setzt den vollständigen Firmwarepfad ein, startet direkt, überwacht Exitcode und beendet bei Abbruch den Prozessbaum. CLI-Syntax gegen installierte J-Flash-Version/Projekt prüfen; das Beispiel ist kein universelles Flashrezept. Legacy-Aliase wie START_ADDRESS oder SERIAL_NUMBER setzen nicht automatisch Flags.
+
+### FSA über FSACommunication.dll
+
+```json
+{"port":"{{station.COMPort_Debug}}","dllPath":"D:\\sys\\FSACommunication.dll"}
+```
+
+`dllPath` ist optional (Standard `D:\sys\FSACommunication.dll`). Der Treiber lädt die .NET-Assembly, erzeugt `FSACommunication.Communication` und ruft `Open(port)` beim Verbinden und `Close()` beim Trennen auf. Die Befehle der DUT-Schritte (`FsaOperations`) werden per Reflection mit den Methodennamen der DLL aufgerufen; nicht bestätigte Befehle werden wie im Altprogramm wiederholt. Die Identifikation sendet **keinen** Befehl, weil der Prüfling beim Laufstart noch nicht programmiert ist; die Firmwareversion ist ein Planschritt.
+
+Die Simulation `SimulatedDutCommunication` antwortet plausibel und lässt sich über Verbindungsparameter steuern: `firmware` ("1.6.20"), `rssi433`/`rssi868`, `supplyInfo` (Temperatur, VCC idle, VCC Last, Kompensation), `genericData` (Antwortbytes je `"Task|Befehl"`, z. B. `{"9|5":[5]}`) und `toggleCommands` (Befehle, deren Datenbyte bei jedem Aufruf zwischen 0 und 1 wechselt, z. B. Tasterstatus).
 
 ### VisaGeneric und DLL-Gerüste
 

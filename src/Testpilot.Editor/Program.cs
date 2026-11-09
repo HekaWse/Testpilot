@@ -47,6 +47,8 @@ if (args.Contains("--seed-system-types", StringComparer.Ordinal))
     app.Logger.LogInformation("Added {Count} test system types: {Names}", added.Count, string.Join(", ", added));
     var equipment = await StationSeed.SeedAsync(database);
     app.Logger.LogInformation("Added known devices and test systems: {Items}", equipment.Count == 0 ? "none" : string.Join(", ", equipment));
+    var plans = await Ps05FbHatPlanSeed.SeedAsync(database);
+    app.Logger.LogInformation("Added test plans: {Items}", plans.Count == 0 ? "none" : string.Join(", ", plans));
     return;
 }
 

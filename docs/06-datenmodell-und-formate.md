@@ -78,7 +78,7 @@ Typreferenzen werden beim Löschen geschützt; Kinddatensätze ihrer jeweiligen 
 
 ## Einheiten und Grenzwerte
 
-Intern `double` in **V, A und Ω**, niemals „Millivolt als Zahl ohne Einheit“. Präfixe sind Darstellungs-/Eingabekomfort.
+Intern `double` in **V, A, Ω und Hz**, niemals „Millivolt als Zahl ohne Einheit“. Präfixe sind Darstellungs-/Eingabekomfort. Zusätzlich gibt es **°C**, **dBm** und **ohne Einheit** (Zahl, z. B. Verhältnis oder Zähler); diese Einheiten nehmen keine Präfixe an.
 
 | Eingabe | Einheit | Gespeicherter SI-Wert |
 | --- | --- | --- |
@@ -86,6 +86,8 @@ Intern `double` in **V, A und Ω**, niemals „Millivolt als Zahl ohne Einheit�
 | `250 uA` | Ampere | 0.00025 |
 | `4,7 kOhm` im deutschen Editor | Ohm | 4700 |
 | `1 MΩ` | Ohm | 1000000 |
+| `32,7647 kHz` im deutschen Editor | Hertz | 32764.7 |
+| `-55 dBm` | dBm | -55 |
 
 Präfixe: `n`, `µ`/`μ`/`u`, `m`, `k`, `M`; Groß-/Kleinschreibung ist relevant. Ohne Präfix gilt SI. Die API arbeitet standardmäßig mit invariantem Zahlenformat; der Editor übergibt deutsche Kultur. Tausendertrennzeichen sind nicht als beliebige Zahlformatierung erlaubt.
 
@@ -102,11 +104,12 @@ Die folgenden Ausschnitte sind jeweils **nur ParametersJson**, nicht der vollst�
 ```
 
 - Gerät muss `ISwitchMultimeter` unterstützen.
-- Funktionen: `VOLT:DC`, `VOLT:AC`, `CURR:DC`, `CURR:AC`, `RES`, `FRES`.
-- Einheit entsprechend Volt, Ampere oder Ohm; Grenzwerte im TestStep, z. B. 3.2/3.4 V.
+- Funktionen: `VOLT:DC`, `VOLT:AC`, `CURR:DC`, `CURR:AC`, `RES`, `FRES`, `FREQ`.
+- Einheit entsprechend Volt, Ampere, Ohm oder Hertz; Grenzwerte im TestStep, z. B. 3.2/3.4 V.
 - `range` und `nplc` optional/null; positive Werte, profilabhängige Grenzen.
-- NPLC nur bei DC und Widerstand, nicht bei AC.
+- NPLC nur bei DC und Widerstand, nicht bei AC und FREQ.
 - `FRES` berücksichtigt profilierte Sensekanäle; kein automatisch erfundenes Kanalpaar.
+- Mehrfachmessung: `"samples":5,"discardHighest":2` misst fünfmal, verwirft die zwei höchsten Werte und mittelt den Rest (1–100 Messungen; `discardHighest` kleiner als `samples`). Gespeichert wird nur der Mittelwert; die Einzelwerte stehen im Geräte-Trace.
 
 ### Relay – Relais
 
@@ -172,7 +175,42 @@ Direkter Prozessstart, keine Shell und keine `.bat`/`.cmd`. Kontextplatzhalter: 
 
 `ICustomStep` muss unter exakt diesem Schlüssel im Host registriert sein. `parameters` ist das handlerspezifische JSON-Objekt. Unbekannter Handler wird vor Hardwarezugriff abgewiesen. Startet ebenfalls bei Simulation; keine automatische Assemblysuche oder Sandbox.
 
-**Für alle Nicht-Messschritte:** keine Messgrenzen/MeasurementUnit angeben. Executor-Ausgaben werden als Text oder passender typisierter Wert gespeichert, nicht beides gleichzeitig. Ergebnistext maximal 4000 Zeichen. Die Reihenfolge ist intern lückenlos und nullbasiert: 0, 1, 2 …; UI-Anzeigen können sie lesbarer darstellen.
+### DutCommand – Befehl an den Prüfling
+
+```json
+{"operation":"SendGenericTestCommand","arguments":["9","5"],"output":"{data[0]}"}
+{"operation":"ReadFirmwareVersion","text":"{major}.{minor}.{deb}","expected":"{{plan.Firm_ver_dut}}"}
+{"operation":"WriteMainConfigBuffer","arguments":["32","{serial}"]}
+```
+
+- Gerät mit `IDutCommunication`, z. B. Modell FSA mit Treiber `FsaCommunication` (Produktions-DLL `FSACommunication.dll`) oder `SimulatedDutCommunication`.
+- `operation`: Befehl der DLL (Liste in `FsaOperations`, im Editor als Auswahl). `arguments`: genau so viele wie der Befehl erwartet, jeweils Zahl oder Formel; die DLL nimmt nur ganze Zahlen.
+- Ergebnis:
+  - mit `output`: Formel über die Rückgabewerte, z. B. `{data[0]}`; Grenzwerte und Einheit wie bei einer Messung.
+  - mit `text` und `expected`: formatierter Text wird mit dem erwarteten Text verglichen (Pass/Fail), Ergebnis ist Text. Nicht mit `output` oder Grenzwerten kombinierbar.
+  - ohne beides: Wert 1, wenn das Gerät den Befehl bestätigt. Nicht bestätigt → Error.
+- Alle Rückgabewerte stehen späteren Schritten als `{Schrittname:Rückgabewert}` zur Verfügung, z. B. `{GS empfangen 433:rssi}`.
+
+### Calculate – Berechnung
+
+```json
+{"formula":"{VCC Last 114} / {VCC Idle 103}"}
+```
+
+Kein Gerät. Der Wert wird wie eine Messung gegen die Grenzwerte geprüft. Ein nicht endliches Ergebnis (z. B. Division durch 0) oder ein unbekannter Bezug ergibt Error und stoppt den Lauf.
+
+### Formeln und Bezüge
+
+- Zahlen mit Dezimalpunkt, `+ - * /`, Klammern, Vergleiche `== != < <= > >=` (Ergebnis 1 oder 0) und die Funktionen `abs`, `trunc`, `round`, `min`, `max`, `mean`, `sum`, `count`.
+- `{Name}` ist der Wert des früheren Schritts mit genau diesem Namen; `{Name:Ausgabe}` ein Rückgabewert eines DUT-Befehls; `{Name:Ausgabe[0]}` ein Element einer Liste (z. B. Datenbytes). `mean({…:rssi})` mittelt alle Werte einer Liste.
+- `{serial}` und `{fauf}` sind Seriennummer und Auftrag als Zahl.
+- Bezogene Schrittnamen müssen eindeutig sein und dürfen weder `:` noch `[` enthalten. Ein Bezug ist erst nach dem Schritt verfügbar, der ihn liefert.
+
+### Wiederholung bei Fehler (alle Schritttypen)
+
+`TestStep.RetryCount` (0–1000) und `RetryDelayMilliseconds` (≥ 0) stehen neben den Parametern. Endet ein Versuch mit Fail oder Error (auch durch eine Exception), wird der Schritt nach der Pause bis zu `RetryCount`-mal wiederholt. Nur der letzte Versuch wird gespeichert; die Versuche stehen im Log und im Geräte-Trace. Damit lassen sich auch „messen, bis der Wert unter der Schwelle liegt, höchstens n-mal“-Schleifen abbilden.
+
+**Einheit und Grenzwerte** gibt es nur bei Measure, DutCommand und Calculate. Ein Schrittergebnis enthält entweder einen Zahlenwert oder einen Text, nie beides. Ergebnistext maximal 4000 Zeichen. Die Reihenfolge ist intern lückenlos und nullbasiert: 0, 1, 2 …; UI-Anzeigen können sie lesbarer darstellen.
 
 ## Benannte Einstellungen als JSON
 
